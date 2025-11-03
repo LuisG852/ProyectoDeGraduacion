@@ -1870,55 +1870,144 @@
     </div>
 
     <!-- Modal Gestión de Artículos del Evento -->
-    <div id="gestionArticulosEventoModal" class="modal">
-        <div class="modal-content" style="max-width: 1200px;">
-            <div class="modal-header">
-                <h2>inventario - <span id="gestion-evento-numero"></span></h2>
-                <span class="close" onclick="closeModal('gestionArticulosEventoModal')">&times;</span>
+   <!-- REEMPLAZAR EN employee_dashboard.html líneas 1873-1920 -->
+<div id="gestionArticulosEventoModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px;">
+        <div class="modal-header">
+            <h2>inventario - <span id="gestion-evento-numero"></span></h2>
+            <span class="close" onclick="closeModal('gestionArticulosEventoModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="evento-info" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <div class="form-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    <div>
+                        <strong>Cliente:</strong>
+                        <p id="gestion-cliente-nombre">-</p>
+                    </div>
+                    <div>
+                        <strong>Fecha Evento:</strong>
+                        <p id="gestion-fecha-evento">-</p>
+                    </div>
+                    <div>
+                        <strong>Estado:</strong>
+                        <p id="gestion-estado-evento">-</p>
+                    </div>
+                </div>
             </div>
-            <div class="modal-body">
-                <div class="evento-info" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
-                    <div class="form-grid" style="grid-template-columns: repeat(3, 1fr);">
-                        <div>
-                            <strong>Cliente:</strong>
-                            <p id="gestion-cliente-nombre">-</p>
-                        </div>
-                        <div>
-                            <strong>Fecha Evento:</strong>
-                            <p id="gestion-fecha-evento">-</p>
-                        </div>
-                        <div>
-                            <strong>Estado:</strong>
-                            <p id="gestion-estado-evento">-</p>
+
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Artículo</th>
+                            <th>Cantidad</th>
+                            <th>Stock Actual</th>
+                            <th>Problemas con el Artículo</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gestion-articulos-detalle-body">
+                        <!-- Articles details will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- CONTROLES GLOBALES -->
+            <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem; border: 2px solid #e5e7eb;">
+                <div class="form-grid" style="grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
+                    <!-- Selector de Estado Global -->
+                    <div>
+                        <label style="font-weight: 600; color: #1f2937; margin-bottom: 0.5rem; display: block;">
+                            Los artículos se encuentran
+                        </label>
+                        <select id="estado-global-articulos" class="form-control" style="padding: 0.75rem; font-size: 1rem; font-weight: 500;">
+                            <option value="">Seleccionar estado...</option>
+                            <option value="reservado">Reservado</option>
+                            <option value="entregado">Entregado</option>
+                            <option value="recogido">Recogido</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="actualizarEstadoGlobal()" style="margin-top: 1rem; width: 100%;">
+                            <i class="fas fa-save"></i> Aplicar Estado a Todos
+                        </button>
+                    </div>
+
+                    <!-- Registro de Fechas y Horas -->
+                    <div>
+                        <label style="font-weight: 600; color: #1f2937; margin-bottom: 0.5rem; display: block;">
+                            Hora y Fecha de Actualización de los Estados
+                        </label>
+                        <div id="registro-estados" style="background: white; padding: 1rem; border-radius: 6px; border: 1px solid #d1d5db; min-height: 100px;">
+                            <div id="estado-reservado-registro" style="margin-bottom: 0.5rem; color: #6b7280;">
+                                <strong style="color: #f59e0b;">Reservado:</strong> <span>Sin registro</span>
+                            </div>
+                            <div id="estado-entregado-registro" style="margin-bottom: 0.5rem; color: #6b7280;">
+                                <strong style="color: #2563eb;">Entregado:</strong> <span>Sin registro</span>
+                            </div>
+                            <div id="estado-recogido-registro" style="color: #6b7280;">
+                                <strong style="color: #10b981;">Recogido:</strong> <span>Sin registro</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Código</th>
-                                <th>Artículo</th>
-                                <th>Cantidad</th>
-                                <th>Stock Actual</th>
-                                <th>Estado</th>
-                                <th>Fechas</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gestion-articulos-detalle-body">
-                            <!-- Articles details will be loaded here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('gestionArticulosEventoModal')">Cerrar</button>
             </div>
         </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('gestionArticulosEventoModal')">Cerrar</button>
+        </div>
     </div>
+</div>
 
+<!-- MODAL DE PROBLEMAS -->
+<div id="problemaArticuloModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h2>Registrar Problema con Artículo</h2>
+            <span class="close" onclick="closeModal('problemaArticuloModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="problema-id-detalle">
+            <input type="hidden" id="problema-id-articulo">
+            
+            <div class="form-group">
+                <label>Artículo:</label>
+                <p id="problema-nombre-articulo" style="font-weight: 600; color: #1f2937;"></p>
+            </div>
+
+            <div class="form-group">
+                <label for="problema-tipo">Tipo de Problema *</label>
+                <select id="problema-tipo" class="form-control" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="roto">Roto</option>
+                    <option value="perdido">Perdido</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="problema-descripcion">Descripción del Problema *</label>
+                <textarea id="problema-descripcion" class="form-control" rows="4" 
+                    placeholder="Describe detalladamente el problema encontrado..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="problema-cantidad-afectada">Cantidad Afectada</label>
+                <input type="number" id="problema-cantidad-afectada" class="form-control" min="1" value="1">
+            </div>
+
+            <div class="form-group">
+                <label for="problema-costo-estimado">Costo de Reparación/Reposición (Q)</label>
+                <input type="number" id="problema-costo-estimado" class="form-control" step="0.01" min="0" placeholder="0.00">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('problemaArticuloModal')">Cancelar</button>
+            <button type="button" class="btn btn-danger" onclick="guardarProblemaArticulo()">
+                <i class="fas fa-exclamation-triangle"></i> Registrar Problema
+            </button>
+        </div>
+    </div>
+</div>
+     
     <!-- Modal Nuevo Evento -->
     <div id="eventoModal" class="modal">
         <div class="modal-content" style="max-width: 1200px; width: 95%;">
@@ -2174,13 +2263,54 @@
                     <div class="form-section">
                         <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
                         <form id="cotizacion-form-completa">
-                            <div class="form-grid">
+                            <!-- Toggle para cliente nuevo o existente -->
+                            <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                                <div style="display: flex; gap: 2rem; align-items: center;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                        <input type="radio" name="cliente-tipo" value="existente" checked onchange="toggleClienteForm('existente')">
+                                        <span>Seleccionar cliente existente</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                        <input type="radio" name="cliente-tipo" value="nuevo" onchange="toggleClienteForm('nuevo')">
+                                        <span>Crear nuevo cliente</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Cliente existente -->
+                            <div id="cliente-existente-section">
                                 <div class="form-group">
-                                    <label>Cliente <small>(Opcional - puede definirse después)</small></label>
+                                    <label>Cliente <span class="required">*</span></label>
                                     <select class="form-control" id="cotizacion-cliente">
-                                        <option value="">Sin cliente definido</option>
+                                        <option value="">Seleccionar cliente...</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <!-- Nuevo cliente -->
+                            <div id="cliente-nuevo-section" class="hidden">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Nombre del Cliente <span class="required">*</span></label>
+                                        <input type="text" class="form-control" id="nuevo-cliente-nombre" placeholder="Nombre completo">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Teléfono</label>
+                                        <input type="text" class="form-control" id="nuevo-cliente-telefono" placeholder="Ej: 1234-5678">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Dirección</label>
+                                    <textarea class="form-control" id="nuevo-cliente-direccion" rows="2" placeholder="Dirección del cliente"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Notas sobre el cliente</label>
+                                    <textarea class="form-control" id="nuevo-cliente-notas" rows="2" placeholder="Información adicional"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Resto del formulario de evento -->
+                            <div class="form-grid">
                                 <div class="form-group">
                                     <label>Fecha del Evento</label>
                                     <input type="date" class="form-control" id="cotizacion-fecha">
@@ -2281,7 +2411,6 @@
             </div>
         </div>
     </div>
-
 
     <!-- Modal Nuevo Artículo -->
     <div id="articuloModal" class="modal">
@@ -3799,15 +3928,16 @@
     }
 
 
-        function renderArticulosTable() {
+        function renderArticulosTable(articulosToRender = null) {
         const tbody = document.getElementById('articulos-table-body');
+        const articulosActuales = articulosToRender || articulos;
         
-        if (articulos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay artículos registrados</td></tr>';
+        if (articulosActuales.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay artículos que coincidan con la búsqueda</td></tr>';
             return;
         }
 
-        tbody.innerHTML = articulos.map(articulo => `
+        tbody.innerHTML = articulosActuales.map(articulo => `
             <tr>
                 <td>${articulo.codigo}</td>
                 <td>${articulo.nombre_articulo}</td>
@@ -4626,53 +4756,111 @@
     }
 
     async function aprobarCotizacionDirecta(cotizacionId) {
-        const { value: clienteId } = await Swal.fire({
-            title: 'Aprobar Cotización',
-            html: `
-                <div style="text-align: left;">
-                    <label>Seleccione el cliente para el evento:</label>
-                    <select id="swal-cliente" class="form-control" style="width: 100%; padding: 0.5rem; margin-top: 0.5rem;">
-                        <option value="">Seleccionar cliente...</option>
-                        ${clientes.map(c => `<option value="${c.id_cliente}">${c.nombre}</option>`).join('')}
-                    </select>
-                </div>
-            `,
-            showCancelButton: true,
-            confirmButtonText: 'Aprobar',
-            cancelButtonText: 'Cancelar',
-            preConfirm: () => {
-                const clienteId = document.getElementById('swal-cliente').value;
-                if (!clienteId) {
-                    Swal.showValidationMessage('Debe seleccionar un cliente');
-                    return false;
-                }
-                return clienteId;
-            }
-        });
+    try {
+        // Primero, obtener información de la cotización
+        const response = await fetch(`/api/cotizaciones/${cotizacionId}`);
+        const data = await response.json();
         
-        if (clienteId) {
-            try {
-                const response = await fetch(`/api/cotizaciones/${cotizacionId}/aprobar`, {
+        if (!data.success) {
+            Swal.fire('Error', 'No se pudo obtener la información de la cotización', 'error');
+            return;
+        }
+        
+        const cotizacion = data.cotizacion;
+        
+        // Si la cotización YA tiene un cliente, aprobar directamente
+        if (cotizacion.id_cliente) {
+            const confirmResult = await Swal.fire({
+                title: '¿Confirmar aprobación?',
+                text: `Se creará un evento para el cliente: ${cotizacion.cliente_nombre}`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, aprobar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#10B981'
+            });
+            
+            if (!confirmResult.isConfirmed) return;
+            
+            // Aprobar con el cliente existente
+            const approveResponse = await fetch(`/api/cotizaciones/${cotizacionId}/aprobar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_cliente: cotizacion.id_cliente })
+            });
+            
+            const approveData = await approveResponse.json();
+            
+            if (approveData.success) {
+                // Mensaje simple con check
+                Swal.fire({
+                    icon: 'success',
+                    title: '✓ Cotización agregada a evento',
+                    text: `Evento ${approveData.numero_evento} creado exitosamente`,
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+                loadCotizaciones();
+                loadEventos();
+            } else {
+                Swal.fire('Error', approveData.message, 'error');
+            }
+        } else {
+            // Si NO tiene cliente, mostrar el modal de selección
+            const { value: clienteId } = await Swal.fire({
+                title: 'Seleccionar Cliente',
+                html: `
+                    <div style="text-align: left;">
+                        <label>Seleccione el cliente para el evento:</label>
+                        <select id="swal-cliente" class="form-control" style="width: 100%; padding: 0.5rem; margin-top: 0.5rem;">
+                            <option value="">Seleccionar cliente...</option>
+                            ${clientes.map(c => `<option value="${c.id_cliente}">${c.nombre}</option>`).join('')}
+                        </select>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Aprobar',
+                cancelButtonText: 'Cancelar',
+                preConfirm: () => {
+                    const clienteId = document.getElementById('swal-cliente').value;
+                    if (!clienteId) {
+                        Swal.showValidationMessage('Debe seleccionar un cliente');
+                        return false;
+                    }
+                    return clienteId;
+                }
+            });
+            
+            if (clienteId) {
+                const approveResponse = await fetch(`/api/cotizaciones/${cotizacionId}/aprobar`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id_cliente: parseInt(clienteId) })
                 });
                 
-                const data = await response.json();
+                const approveData = await approveResponse.json();
                 
-                if (data.success) {
-                    Swal.fire('Éxito', `Evento ${data.numero_evento} creado exitosamente`, 'success');
+                if (approveData.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✓ Cotización agregada a evento',
+                        text: `Evento ${approveData.numero_evento} creado exitosamente`,
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
                     loadCotizaciones();
                     loadEventos();
                 } else {
-                    Swal.fire('Error', data.message, 'error');
+                    Swal.fire('Error', approveData.message, 'error');
                 }
-            } catch (error) {
-                console.error('Error aprobando cotización:', error);
-                Swal.fire('Error', 'Error al aprobar cotización', 'error');
             }
         }
+    } catch (error) {
+        console.error('Error aprobando cotización:', error);
+        Swal.fire('Error', 'Error al aprobar cotización', 'error');
     }
+}
+
 
     // ===============================================
     // GESTIÓN DE INVENTARIO (ARTÍCULOS POR EVENTO)
@@ -4801,53 +4989,312 @@
         }
     }
 
-    function renderArticulosGestion() {
-        const tbody = document.getElementById('gestion-articulos-detalle-body');
+// ===============================================
+// JAVASCRIPT MODIFICADO PARA GESTIÓN DE INVENTARIO
+// Reemplazar en employee_dashboard.html a partir de la línea 4845
+// ===============================================
+
+function renderArticulosGestion() {
+    const tbody = document.getElementById('gestion-articulos-detalle-body');
+    
+    if (articulosGestionActual.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No hay artículos en este evento</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = articulosGestionActual.map(articulo => {
+        return `
+            <tr>
+                <td><code>${articulo.codigo}</code></td>
+                <td><strong>${articulo.nombre_articulo}</strong></td>
+                <td>${articulo.cantidad_solicitada}</td>
+                <td>
+                    <span style="${articulo.stock_actual < 10 ? 'color: #EF4444; font-weight: 600;' : 'color: #10B981; font-weight: 600;'}">
+                        ${articulo.stock_actual}
+                    </span>
+                </td>
+                <td style="text-align: center;">
+                    <input type="checkbox" 
+                        id="problema-check-${articulo.id_detalle}" 
+                        onchange="toggleProblemaArticulo(${articulo.id_detalle}, ${articulo.id_articulo}, '${articulo.nombre_articulo.replace(/'/g, "&#39;")}')"
+                        ${articulo.estado_articulo === 'con_problemas' ? 'checked' : ''}
+                        style="width: 20px; height: 20px; cursor: pointer;">
+                </td>
+                <td>
+                    <button class="btn btn-primary btn-sm" onclick="verDetalleArticuloEvento(${articulo.id_detalle})" title="Ver Detalle">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    // Cargar el registro de estados
+    cargarRegistroEstados();
+}
+
+// Función para manejar el checkbox de problemas
+function toggleProblemaArticulo(detalleId, articuloId, nombreArticulo) {
+    const checkbox = document.getElementById(`problema-check-${detalleId}`);
+    
+    if (checkbox.checked) {
+        // Abrir modal de problemas
+        abrirModalProblema(detalleId, articuloId, nombreArticulo);
+    } else {
+        // Desmarcar problema - cambiar estado a reservado
+        cambiarEstadoArticuloDirecto(detalleId, 'reservado', articuloId);
+    }
+}
+
+// Abrir modal de registro de problemas
+function abrirModalProblema(detalleId, articuloId, nombreArticulo) {
+    document.getElementById('problema-id-detalle').value = detalleId;
+    document.getElementById('problema-id-articulo').value = articuloId;
+    document.getElementById('problema-nombre-articulo').textContent = nombreArticulo;
+    
+    // Limpiar campos
+    document.getElementById('problema-tipo').value = '';
+    document.getElementById('problema-descripcion').value = '';
+    document.getElementById('problema-cantidad-afectada').value = '1';
+    document.getElementById('problema-costo-estimado').value = '';
+    
+    openModal('problemaArticuloModal');
+}
+
+// Guardar problema de artículo
+async function guardarProblemaArticulo() {
+    const detalleId = document.getElementById('problema-id-detalle').value;
+    const articuloId = document.getElementById('problema-id-articulo').value;
+    const tipo = document.getElementById('problema-tipo').value;
+    const descripcion = document.getElementById('problema-descripcion').value;
+    const cantidadAfectada = document.getElementById('problema-cantidad-afectada').value;
+    const costoEstimado = document.getElementById('problema-costo-estimado').value;
+    
+    if (!tipo || !descripcion.trim()) {
+        Swal.fire('Error', 'Por favor complete los campos obligatorios', 'error');
+        return;
+    }
+    
+    try {
+        // 1. Registrar el problema
+        const responseProblema = await fetch('/api/problemas/articulo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id_evento: eventoGestionActual.id_evento,
+                id_articulo: articuloId,
+                id_detalle: detalleId,
+                tipo_problema: tipo,
+                descripcion: descripcion,
+                cantidad_afectada: cantidadAfectada,
+                costo_estimado: costoEstimado || 0
+            })
+        });
         
-        if (articulosGestionActual.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay artículos en este evento</td></tr>';
+        const dataProblema = await responseProblema.json();
+        
+        if (!dataProblema.success) {
+            throw new Error(dataProblema.message || 'Error al registrar problema');
+        }
+        
+        // 2. Cambiar estado del artículo a "con_problemas"
+        await cambiarEstadoArticuloDirecto(detalleId, 'con_problemas', articuloId);
+        
+        closeModal('problemaArticuloModal');
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Problema Registrado',
+            text: 'El problema ha sido registrado correctamente',
+            timer: 2000
+        });
+        
+        // Recargar artículos
+        abrirGestionArticulosEvento(eventoGestionActual.id_evento);
+        
+    } catch (error) {
+        console.error('Error guardando problema:', error);
+        Swal.fire('Error', error.message || 'Error al registrar el problema', 'error');
+        
+        // Desmarcar el checkbox si falló
+        const checkbox = document.getElementById(`problema-check-${detalleId}`);
+        if (checkbox) checkbox.checked = false;
+    }
+}
+
+// Cambiar estado de artículo sin confirmación
+async function cambiarEstadoArticuloDirecto(detalleId, nuevoEstado, articuloId) {
+    try {
+        const eventoId = eventoGestionActual?.id_evento;
+        
+        if (!eventoId) {
+            Swal.fire('Error', 'No se pudo determinar el evento', 'error');
             return;
         }
 
-        tbody.innerHTML = articulosGestionActual.map(articulo => {
-            const estadoColor = getEstadoColor(articulo.estado_articulo);
-            const fechas = getFechasArticuloSimplificado(articulo);
-            
-            return `
-                <tr>
-                    <td><code>${articulo.codigo}</code></td>
-                    <td><strong>${articulo.nombre_articulo}</strong></td>
-                    <td>${articulo.cantidad_solicitada}</td>
-                    <td>
-                        <span style="${articulo.stock_actual < 10 ? 'color: #EF4444; font-weight: 600;' : 'color: #10B981; font-weight: 600;'}">
-                            ${articulo.stock_actual}
-                        </span>
-                    </td>
-                    <td>
-                        <select class="form-control" style="padding: 0.5rem; font-size: 0.875rem; background: ${estadoColor}; font-weight: 600; border: 2px solid rgba(0,0,0,0.1);" 
-                                onchange="cambiarEstadoArticulo(${articulo.id_detalle}, this.value, ${articulo.id_articulo})">
-                            <option value="reservado" ${articulo.estado_articulo === 'reservado' ? 'selected' : ''}>Reservado</option>
-                            <option value="entregado" ${articulo.estado_articulo === 'entregado' ? 'selected' : ''}>Entregado</option>
-                            <option value="recogido" ${articulo.estado_articulo === 'recogido' ? 'selected' : ''}>Recogido</option>
-                            <option value="con_problemas" ${articulo.estado_articulo === 'con_problemas' ? 'selected' : ''}>Con Problemas</option>
-                        </select>
-                    </td>
-                    <td style="font-size: 0.75rem;">
-                        ${fechas}
-                    </td>
-                    <td>
-                        <button class="btn btn-primary btn-sm" onclick="verDetalleArticuloEvento(${articulo.id_detalle})" title="Ver Detalle">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-        
-        // Mostrar/ocultar botón "Escribe el problema"
-        mostrarBotonEscribirProblema();
-    }
+        const response = await fetch(`/api/eventos/${eventoId}/articulo/${detalleId}/estado`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                estado: nuevoEstado,
+                id_articulo: articuloId 
+            })
+        });
 
+        const data = await response.json();
+
+        if (data.success) {
+            // Actualizar el estado local
+            const articulo = articulosGestionActual.find(a => a.id_detalle === detalleId);
+            if (articulo) {
+                articulo.estado_articulo = nuevoEstado;
+            }
+            
+            // Recargar datos
+            abrirGestionArticulosEvento(eventoId);
+        } else {
+            throw new Error(data.message);
+        }
+    } catch (error) {
+        console.error('Error cambiando estado:', error);
+        Swal.fire('Error', 'Error al cambiar el estado del artículo', 'error');
+    }
+}
+
+// Actualizar estado global de todos los artículos
+async function actualizarEstadoGlobal() {
+    const estadoGlobal = document.getElementById('estado-global-articulos').value;
+    
+    if (!estadoGlobal) {
+        Swal.fire('Error', 'Por favor seleccione un estado', 'warning');
+        return;
+    }
+    
+    const eventoId = eventoGestionActual?.id_evento;
+    
+    if (!eventoId) {
+        Swal.fire('Error', 'No se pudo determinar el evento', 'error');
+        return;
+    }
+    
+    const descripciones = {
+        'reservado': 'Los artículos estarán reservados para el evento',
+        'entregado': 'Los artículos serán entregados al cliente (se descuenta del stock)',
+        'recogido': 'Los artículos serán recogidos del cliente (se regresa al stock)'
+    };
+    
+    const confirmacion = await Swal.fire({
+        title: '¿Actualizar todos los artículos?',
+        html: `
+            <div style="text-align: left;">
+                <p>Se cambiará el estado de <strong>TODOS</strong> los artículos a: <strong>${estadoGlobal.toUpperCase()}</strong></p>
+                <p class="text-muted" style="font-size: 0.9rem; margin-top: 0.5rem;">
+                    ${descripciones[estadoGlobal]}
+                </p>
+            </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, actualizar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#2563EB'
+    });
+    
+    if (!confirmacion.isConfirmed) return;
+    
+    try {
+        Swal.fire({
+            title: 'Actualizando...',
+            text: 'Por favor espere',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+        
+        const response = await fetch(`/api/eventos/${eventoId}/articulos/estado-global`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                estado: estadoGlobal
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Estado Actualizado',
+                text: `Todos los artículos han sido marcados como ${estadoGlobal}`,
+                timer: 2000
+            });
+            
+            // Recargar artículos
+            abrirGestionArticulosEvento(eventoId);
+        } else {
+            throw new Error(data.message);
+        }
+    } catch (error) {
+        console.error('Error actualizando estado global:', error);
+        Swal.fire('Error', error.message || 'Error al actualizar el estado', 'error');
+    }
+}
+
+// Cargar registro de estados con fechas
+async function cargarRegistroEstados() {
+    try {
+        const eventoId = eventoGestionActual?.id_evento;
+        
+        if (!eventoId) return;
+        
+        const response = await fetch(`/api/eventos/${eventoId}/estados-registro`);
+        const data = await response.json();
+        
+        if (data.success && data.estados) {
+            // Zona horaria de Guatemala (GMT-6)
+            const formatearFechaGuatemala = (fecha) => {
+                if (!fecha) return 'Sin registro';
+                const d = new Date(fecha);
+                // Convertir a zona horaria de Guatemala
+                const opciones = {
+                    timeZone: 'America/Guatemala',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                };
+                return new Intl.DateTimeFormat('es-GT', opciones).format(d);
+            };
+            
+            document.querySelector('#estado-reservado-registro span').textContent = 
+                formatearFechaGuatemala(data.estados.reservado);
+            document.querySelector('#estado-entregado-registro span').textContent = 
+                formatearFechaGuatemala(data.estados.entregado);
+            document.querySelector('#estado-recogido-registro span').textContent = 
+                formatearFechaGuatemala(data.estados.recogido);
+        }
+    } catch (error) {
+        console.error('Error cargando registro de estados:', error);
+    }
+}
+
+// Función auxiliar que podría no existir - formatDateTimeFull
+function formatDateTimeFull(datetime) {
+    if (!datetime) return '-';
+    const d = new Date(datetime);
+    const opciones = {
+        timeZone: 'America/Guatemala',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    };
+    return new Intl.DateTimeFormat('es-GT', opciones).format(d);
+}
 
     function getFechasArticuloSimplificado(articulo) {
         let fechas = [];
@@ -5520,15 +5967,27 @@
         }
         
         if (modalId === 'cotizacionModal') {
-            cotizacionCart = [];
+            // Solo limpiar si es nueva cotización (no edición)
+            if (!cotizacionActualId) {
+                cotizacionCart = [];
+                document.getElementById('cotizacion-form-completa').reset();
+            }
+            
             renderCotizacionCart();
             
-            document.getElementById('articulos-section-cot').classList.add('hidden');
-            document.getElementById('servicios-section-cot').classList.add('hidden');
-            document.getElementById('toggleArticulosCot').checked = false;
-            document.getElementById('toggleServiciosCot').checked = false;
+            // Solo ocultar secciones si es nueva
+            if (!cotizacionActualId) {
+                document.getElementById('articulos-section-cot').classList.add('hidden');
+                document.getElementById('servicios-section-cot').classList.add('hidden');
+                document.getElementById('toggleArticulosCot').checked = false;
+                document.getElementById('toggleServiciosCot').checked = false;
+            }
             
             loadClientes();
+            
+            // Cargar artículos y servicios disponibles
+            loadArticulosParaCotizacion();
+            loadServiciosParaCotizacion();
         }
     }
 
@@ -5538,6 +5997,18 @@
         const form = document.querySelector(`#${modalId} form`);
         if (form) {
             form.reset();
+        }
+        
+        // Limpiar ID de cotización en edición
+        if (modalId === 'cotizacionModal') {
+            cotizacionActualId = null;
+            
+            // Restaurar botón a "Guardar" en lugar de "Actualizar"
+            const saveButton = document.querySelector('#cotizacionModal .modal-footer .btn-primary');
+            if (saveButton) {
+                saveButton.innerHTML = '<i class="fas fa-save"></i> Guardar Cotización';
+                saveButton.onclick = guardarCotizacionCompleta;
+            }
         }
     }
 
@@ -5609,6 +6080,39 @@
         renderEventosTable(filteredEventos);
     });
 
+
+    // Event listener para búsqueda de artículos en inventario
+    document.getElementById('search-articulos')?.addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const categoria = document.getElementById('filter-categoria')?.value;
+        
+        let filteredArticulos = articulos.filter(articulo => {
+            const matchesSearch = articulo.nombre_articulo.toLowerCase().includes(searchTerm) ||
+                                  articulo.codigo.toLowerCase().includes(searchTerm) ||
+                                  (articulo.descripcion && articulo.descripcion.toLowerCase().includes(searchTerm));
+            const matchesCategoria = !categoria || articulo.id_categoria == categoria;
+            return matchesSearch && matchesCategoria;
+        });
+        
+        renderArticulosTable(filteredArticulos);
+    });
+
+    // Event listener para filtro de categoría
+    document.getElementById('filter-categoria')?.addEventListener('change', function(e) {
+        const categoria = e.target.value;
+        const searchTerm = document.getElementById('search-articulos')?.value.toLowerCase() || '';
+        
+        let filteredArticulos = articulos.filter(articulo => {
+            const matchesSearch = !searchTerm || 
+                                  articulo.nombre_articulo.toLowerCase().includes(searchTerm) ||
+                                  articulo.codigo.toLowerCase().includes(searchTerm) ||
+                                  (articulo.descripcion && articulo.descripcion.toLowerCase().includes(searchTerm));
+            const matchesCategoria = !categoria || articulo.id_categoria == categoria;
+            return matchesSearch && matchesCategoria;
+        });
+        
+        renderArticulosTable(filteredArticulos);
+    });
     document.getElementById('search-articulos-evento')?.addEventListener('input', function(e) {
         const searchTerm = e.target.value.toLowerCase();
         const filtered = articulosDisponibles.filter(articulo => 
@@ -5624,6 +6128,32 @@
                 <div class="stock">Stock: ${articulo.cantidad_disponible}</div>
             </div>
         `).join('');
+    });
+
+       
+    document.getElementById('search-articulos-evento')?.addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const filtered = articulosDisponibles.filter(articulo => {
+
+            const nombre = (articulo.nombre_articulo || '').toLowerCase();
+            const codigo = (articulo.codigo || '').toString().toLowerCase();
+
+            return nombre.includes(searchTerm) || codigo.includes(searchTerm);
+        });
+        
+        const grid = document.getElementById('articulos-grid');
+        
+        if (grid) {
+            grid.innerHTML = filtered.map(articulo => `
+                <div class="item-card" onclick="addItemToCart('articulo', ${articulo.id_articulo})">
+                    <h5>${articulo.nombre_articulo}</h5>
+                    <div class="price">Q${parseFloat(articulo.precio_unitario).toFixed(2)}</div>
+                    <div class="stock">Stock: ${articulo.cantidad_disponible}</div>
+                </div>
+            `).join('');
+        } else {
+            console.error("Error: Contenedor 'articulos-grid' no encontrado.");
+        }
     });
 
     // Búsqueda y filtros de cotizaciones
