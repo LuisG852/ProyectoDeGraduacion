@@ -32,7 +32,7 @@ else:
     # Desarrollo - conectar directo a tu base en Render con psycopg3
     #app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg://alquifiestas_user:OGKpbEmUIefuJ2R8YRJ8AUo7ZmlfNFW1@dpg-d2me99ogjchc73ci0mf0-a.oregon-postgres.render.com:5432/alquifiestas'
 
-     app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg://alquifiestas_user:8mLAXVU1ugv5u75TtDq59i1je7rkMv3D@dpg-d3cvghl6ubrc73f5o4mg-a.oregon-postgres.render.com:5432/alquifiestas_5zn7'
+     app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg://alquifiestas_user:xhOfG1JgHckIwrqjAw7bM6S7FL8GDREv@dpg-d43dbs6uk2gs738vs0h0-a.oregon-postgres.render.com:5432/alquifiestas_db'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -3819,9 +3819,7 @@ def get_evento_articulos(evento_id):
     
     try:
         cursor = db.session.connection().connection.cursor()
-        
-        print(f"🔍 Buscando evento con ID: {evento_id}")  # Log para debugging
-        
+              
         # Obtener información del evento
         cursor.execute("""
             SELECT e.numero_evento, e.fecha_evento, e.estado, c.nombre as cliente_nombre
@@ -3839,8 +3837,7 @@ def get_evento_articulos(evento_id):
                 'message': f'Evento con ID {evento_id} no encontrado'
             }), 404
         
-        print(f"✅ Evento encontrado: {evento_info[0]}")
-        
+      
         # Obtener artículos del evento
         cursor.execute("""
             SELECT ea.id_detalle, ea.id_articulo, a.codigo, a.nombre_articulo,
@@ -3857,9 +3854,7 @@ def get_evento_articulos(evento_id):
         
         columns = [desc[0] for desc in cursor.description]
         articulos_results = cursor.fetchall()
-        
-        print(f"✅ {len(articulos_results)} artículos encontrados")
-        
+               
         articulos = []
         for row in articulos_results:
             articulo = dict(zip(columns, row))
@@ -3887,7 +3882,6 @@ def get_evento_articulos(evento_id):
             'articulos': articulos
         }
         
-        print(f"📤 Enviando respuesta exitosa")
         return jsonify(response_data)
         
     except Exception as e:
@@ -4580,8 +4574,460 @@ def obtener_articulo(articulo_id):
     except Exception as e:
         print(f"Error en obtener_articulo: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
+    
+from datetime import datetime
+import pytz
+
+# Endpoint para actualizar estado global de todos los artículos de un evento
+@app.route('/api/eventos/<int:evento_id>/articulos/estado-global', methods=['PUT'])
+def actualizar_estado_global_articulos(evento_id):
+    """Actualizar el estado de todos los artículos de un evento y manejar stock"""
+    try:
+        data = request.json
+        nuevo_estado = data.get('estado')
+        
+        if not nuevo_estado or nuevo_estado not in ['reservado', 'entregado', 'recogido']:
+            return jsonify({
+                'success': False,
+                'message': 'Estado inválido'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener todos los artículos del evento que NO tienen problemas
+        cursor.execute("""
+            SELECT id_detalle, id_articulo, cantidad_solicitada, estado_articulo
+            FROM evento_articulos
+            WHERE id_evento = %s AND estado_articulo != 'con_problemas'
+        """, (evento_id,))
+        
+        articulos = cursor.fetchall()
+        
+        if not articulos:
+            return jsonify({
+                'success': False,
+                'message': 'No hay artículos en este evento'
+            }), 404
+        
+        # Zona horaria de Guatemala
+        tz_guatemala = pytz.timezone('America/Guatemala')
+        fecha_actual = datetime.now(tz_guatemala)
+        
+        # Actualizar cada artículo
+        for id_detalle, id_articulo, cantidad_solicitada, estado_anterior in articulos:
+            
+            # GESTIÓN DE STOCK SEGÚN CAMBIO DE ESTADO
+            if estado_anterior != nuevo_estado:
+                
+                # Si pasa a ENTREGADO → Descontar del stock
+                if nuevo_estado == 'entregado' and estado_anterior != 'entregado':
+                    cursor.execute("""
+                        UPDATE articulos
+                        SET cantidad_disponible = GREATEST(0, cantidad_disponible - %s)
+                        WHERE id_articulo = %s
+                    """, (cantidad_solicitada, id_articulo))
+                    
+                    # Registrar movimiento de salida
+                    cursor.execute("""
+                        INSERT INTO movimientos_inventario 
+                        (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                        VALUES (%s, %s, 'entrega', %s, 'Sistema', 'Artículos entregados al cliente')
+                    """, (id_articulo, evento_id, cantidad_solicitada))
+                    
+                    # Actualizar cantidad_entregada en evento_articulos
+                    cursor.execute("""
+                        UPDATE evento_articulos
+                        SET cantidad_entregada = %s
+                        WHERE id_detalle = %s
+                    """, (cantidad_solicitada, id_detalle))
+                
+                # Si pasa a RECOGIDO → Reintegrar al stock
+                elif nuevo_estado == 'recogido' and estado_anterior == 'entregado':
+                    cursor.execute("""
+                        UPDATE articulos
+                        SET cantidad_disponible = cantidad_disponible + %s
+                        WHERE id_articulo = %s
+                    """, (cantidad_solicitada, id_articulo))
+                    
+                    # Registrar movimiento de entrada
+                    cursor.execute("""
+                        INSERT INTO movimientos_inventario 
+                        (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                        VALUES (%s, %s, 'recogida', %s, 'Sistema', 'Artículos recogidos del cliente')
+                    """, (id_articulo, evento_id, cantidad_solicitada))
+                    
+                    # Actualizar cantidad_recogida en evento_articulos
+                    cursor.execute("""
+                        UPDATE evento_articulos
+                        SET cantidad_recogida = %s
+                        WHERE id_detalle = %s
+                    """, (cantidad_solicitada, id_detalle))
+                
+                # Si vuelve a RESERVADO desde ENTREGADO → Reintegrar al stock
+                elif nuevo_estado == 'reservado' and estado_anterior == 'entregado':
+                    cursor.execute("""
+                        UPDATE articulos
+                        SET cantidad_disponible = cantidad_disponible + %s
+                        WHERE id_articulo = %s
+                    """, (cantidad_solicitada, id_articulo))
+                    
+                    # Registrar movimiento
+                    cursor.execute("""
+                        INSERT INTO movimientos_inventario 
+                        (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                        VALUES (%s, %s, 'entrada', %s, 'Sistema', 'Revertido a reservado desde entregado')
+                    """, (id_articulo, evento_id, cantidad_solicitada))
+                    
+                    # Resetear cantidad_entregada
+                    cursor.execute("""
+                        UPDATE evento_articulos
+                        SET cantidad_entregada = 0
+                        WHERE id_detalle = %s
+                    """, (id_detalle,))
+            
+            # ACTUALIZAR ESTADO Y FECHA
+            if nuevo_estado == 'entregado':
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET estado_articulo = %s,
+                        fecha_entrega = %s
+                    WHERE id_detalle = %s
+                """, (nuevo_estado, fecha_actual, id_detalle))
+                
+            elif nuevo_estado == 'recogido':
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET estado_articulo = %s,
+                        fecha_devolucion = %s
+                    WHERE id_detalle = %s
+                """, (nuevo_estado, fecha_actual, id_detalle))
+                
+            else:  # reservado
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET estado_articulo = %s,
+                        fecha_entrega = NULL,
+                        fecha_devolucion = NULL
+                    WHERE id_detalle = %s
+                """, (nuevo_estado, id_detalle))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Estado actualizado a {nuevo_estado} para todos los artículos',
+            'articulos_actualizados': len(articulos)
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en actualizar_estado_global_articulos: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
+# Endpoint para obtener registro de estados con fechas
+@app.route('/api/eventos/<int:evento_id>/estados-registro', methods=['GET'])
+def obtener_estados_registro(evento_id):
+    """Obtener el registro de fechas de cambios de estado"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener las fechas más recientes de cada estado
+        # Nota: No hay campo created_at en evento_articulos, así que usamos fecha del evento para reservado
+        cursor.execute("""
+            SELECT 
+                e.created_at as fecha_reservado,
+                MAX(ea.fecha_entrega) as fecha_entregado,
+                MAX(ea.fecha_devolucion) as fecha_recogido
+            FROM eventos e
+            LEFT JOIN evento_articulos ea ON e.id_evento = ea.id_evento
+            WHERE e.id_evento = %s
+            GROUP BY e.created_at
+        """, (evento_id,))
+        
+        result = cursor.fetchone()
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'estados': {
+                    'reservado': result[0].isoformat() if result[0] else None,
+                    'entregado': result[1].isoformat() if result[1] else None,
+                    'recogido': result[2].isoformat() if result[2] else None
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'estados': {
+                    'reservado': None,
+                    'entregado': None,
+                    'recogido': None
+                }
+            })
+        
+    except Exception as e:
+        print(f"Error en obtener_estados_registro: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# Endpoint para registrar problemas de artículos
+@app.route('/api/problemas/articulo', methods=['POST'])
+def registrar_problema_articulo():
+    """Registrar un problema con un artículo del evento en reportes_problemas y actualizar stock"""
+    try:
+        data = request.json
+        
+        id_evento = data.get('id_evento')
+        id_articulo = data.get('id_articulo')
+        id_detalle = data.get('id_detalle')
+        tipo_problema = data.get('tipo_problema')
+        descripcion = data.get('descripcion')
+        cantidad_afectada = data.get('cantidad_afectada', 1)
+        costo_estimado = data.get('costo_estimado', 0)
+        
+        if not all([id_evento, id_articulo, tipo_problema, descripcion]):
+            return jsonify({
+                'success': False,
+                'message': 'Faltan datos requeridos'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Zona horaria de Guatemala
+        tz_guatemala = pytz.timezone('America/Guatemala')
+        fecha_actual = datetime.now(tz_guatemala)
+        
+        # Mapeo de tipos de problema del modal a la base de datos
+        # Modal: roto, perdido, incompleto, sucio, otro
+        # BD: dañado, perdido, equivocado, faltante, roto
+        mapeo_tipos = {
+            'roto': 'roto',
+            'perdido': 'perdido'
+        }
+        
+        tipo_problema_bd = mapeo_tipos.get(tipo_problema, 'dañado')
+        
+        # Obtener información del usuario actual (si está en sesión)
+        user_id = session.get('user_id', None)
+        
+        # Insertar en reportes_problemas (tabla existente)
+        cursor.execute("""
+            INSERT INTO reportes_problemas 
+            (id_evento, id_articulo, tipo_problema, descripcion_problema, 
+             costo_problema, estado_reporte, fecha_reporte, reportado_por)
+            VALUES (%s, %s, %s, %s, %s, 'abierto', %s, %s)
+            RETURNING id_reporte
+        """, (
+            id_evento, id_articulo, tipo_problema_bd, 
+            f"{descripcion} (Cantidad afectada: {cantidad_afectada})",
+            costo_estimado, fecha_actual, user_id
+        ))
+        
+        id_reporte = cursor.fetchone()[0]
+        
+        # Actualizar el stock del artículo según el tipo de problema
+        if tipo_problema in ['perdido', 'roto']:
+            # Descontar del stock disponible y agregar a cantidad dañada
+            cursor.execute("""
+                UPDATE articulos
+                SET cantidad_disponible = GREATEST(0, cantidad_disponible - %s),
+                    cantidad_dañada = cantidad_dañada + %s
+                WHERE id_articulo = %s
+            """, (cantidad_afectada, cantidad_afectada, id_articulo))
+            
+            # Registrar movimiento de inventario
+            cursor.execute("""
+                INSERT INTO movimientos_inventario 
+                (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                id_articulo, id_evento, tipo_problema_bd, 
+                cantidad_afectada, 'Sistema', 
+                f"Problema registrado: {tipo_problema} - {descripcion}"
+            ))
+        
+        # Actualizar el detalle del evento con la cantidad dañada/perdida
+        if tipo_problema == 'perdido':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET cantidad_perdida = cantidad_perdida + %s
+                WHERE id_detalle = %s
+            """, (cantidad_afectada, id_detalle))
+        elif tipo_problema == 'roto':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET cantidad_dañada = cantidad_dañada + %s
+                WHERE id_detalle = %s
+            """, (cantidad_afectada, id_detalle))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Problema registrado correctamente y stock actualizado',
+            'id_reporte': id_reporte,
+            'stock_actualizado': True
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en registrar_problema_articulo: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# Endpoint para actualizar estado de artículo individual
+@app.route('/api/eventos/<int:evento_id>/articulo/<int:detalle_id>/estado', methods=['PUT'])
+def actualizar_estado_articulo_individual(evento_id, detalle_id):
+    """Actualizar el estado de un artículo específico del evento y manejar stock"""
+    try:
+        data = request.json
+        nuevo_estado = data.get('estado')
+        id_articulo = data.get('id_articulo')
+        
+        if not nuevo_estado or nuevo_estado not in ['reservado', 'entregado', 'recogido', 'con_problemas']:
+            return jsonify({
+                'success': False,
+                'message': 'Estado inválido'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el detalle existe
+        cursor.execute("""
+            SELECT id_detalle, id_articulo, cantidad_solicitada, estado_articulo
+            FROM evento_articulos
+            WHERE id_detalle = %s AND id_evento = %s
+        """, (detalle_id, evento_id))
+        
+        articulo = cursor.fetchone()
+        
+        if not articulo:
+            return jsonify({
+                'success': False,
+                'message': 'Artículo no encontrado en este evento'
+            }), 404
+        
+        id_detalle, id_articulo_db, cantidad_solicitada, estado_anterior = articulo
+        
+        # Zona horaria de Guatemala
+        tz_guatemala = pytz.timezone('America/Guatemala')
+        fecha_actual = datetime.now(tz_guatemala)
+        
+        # GESTIÓN DE STOCK SEGÚN CAMBIO DE ESTADO
+        if estado_anterior != nuevo_estado and nuevo_estado != 'con_problemas':
+            
+            # Si pasa a ENTREGADO → Descontar del stock
+            if nuevo_estado == 'entregado' and estado_anterior != 'entregado':
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = GREATEST(0, cantidad_disponible - %s)
+                    WHERE id_articulo = %s
+                """, (cantidad_solicitada, id_articulo_db))
+                
+                # Registrar movimiento de salida
+                cursor.execute("""
+                    INSERT INTO movimientos_inventario 
+                    (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                    VALUES (%s, %s, 'entrega', %s, 'Sistema', 'Artículo entregado al cliente')
+                """, (id_articulo_db, evento_id, cantidad_solicitada))
+                
+                # Actualizar cantidad_entregada
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET cantidad_entregada = %s
+                    WHERE id_detalle = %s
+                """, (cantidad_solicitada, id_detalle))
+            
+            # Si pasa a RECOGIDO → Reintegrar al stock
+            elif nuevo_estado == 'recogido' and estado_anterior == 'entregado':
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = cantidad_disponible + %s
+                    WHERE id_articulo = %s
+                """, (cantidad_solicitada, id_articulo_db))
+                
+                # Registrar movimiento de entrada
+                cursor.execute("""
+                    INSERT INTO movimientos_inventario 
+                    (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                    VALUES (%s, %s, 'recogida', %s, 'Sistema', 'Artículo recogido del cliente')
+                """, (id_articulo_db, evento_id, cantidad_solicitada))
+                
+                # Actualizar cantidad_recogida
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET cantidad_recogida = %s
+                    WHERE id_detalle = %s
+                """, (cantidad_solicitada, id_detalle))
+            
+            # Si vuelve a RESERVADO desde ENTREGADO → Reintegrar al stock
+            elif nuevo_estado == 'reservado' and estado_anterior == 'entregado':
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = cantidad_disponible + %s
+                    WHERE id_articulo = %s
+                """, (cantidad_solicitada, id_articulo_db))
+                
+                # Registrar movimiento
+                cursor.execute("""
+                    INSERT INTO movimientos_inventario 
+                    (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                    VALUES (%s, %s, 'entrada', %s, 'Sistema', 'Revertido a reservado desde entregado')
+                """, (id_articulo_db, evento_id, cantidad_solicitada))
+                
+                # Resetear cantidad_entregada
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET cantidad_entregada = 0
+                    WHERE id_detalle = %s
+                """, (id_detalle,))
+        
+        # ACTUALIZAR ESTADO Y FECHA
+        if nuevo_estado == 'entregado':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = %s,
+                    fecha_entrega = %s
+                WHERE id_detalle = %s
+            """, (nuevo_estado, fecha_actual, detalle_id))
+            
+        elif nuevo_estado == 'recogido':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = %s,
+                    fecha_devolucion = %s
+                WHERE id_detalle = %s
+            """, (nuevo_estado, fecha_actual, detalle_id))
+            
+        elif nuevo_estado == 'con_problemas':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = %s
+                WHERE id_detalle = %s
+            """, (nuevo_estado, detalle_id))
+            
+        else:  # reservado
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = %s,
+                    fecha_entrega = NULL,
+                    fecha_devolucion = NULL
+                WHERE id_detalle = %s
+            """, (nuevo_estado, detalle_id))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Estado actualizado a {nuevo_estado}'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en actualizar_estado_articulo_individual: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+        
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5050))
     print("Iniciando aplicación Flask...")
