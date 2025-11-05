@@ -187,64 +187,116 @@ def index():
 @app.route('/register_page')
 def register_page():
     return render_template('register.html')
+# ========================================
+# ENDPOINTS DE AUTENTICACIÓN
+# ========================================
 
+from flask import request, jsonify, session
+
+# ========================================
+# LOGIN
+# ========================================
 @app.route('/login', methods=['POST'])
 def login():
     try:
         data = request.get_json()
         username = data.get('username')
         password = data.get('password')
-        
+
+        # Validar campos vacíos
         if not username or not password:
             return jsonify({
                 'success': False,
                 'message': 'Usuario y contraseña son requeridos'
             }), 400
-        
-        user_data = authenticate_user(username, password)
-        
-        if user_data:
-            session['user'] = username
-            session['user_id'] = user_data['id']
-            session['user_name'] = user_data['full_name']
-            session['user_type'] = user_data['user_type']
-            session['is_admin'] = user_data['user_type'] == 'admin'
-            session['is_empleado'] = user_data['user_type'] == 'empleado'
-            
-            # Obtener ID específico según el tipo
-            cursor = db.session.connection().connection.cursor()
-            
-            if session['is_empleado']:
-                cursor.execute("SELECT id_empleado FROM empleados WHERE user_id = %s", (user_data['id'],))
-                empleado = cursor.fetchone()
-                if empleado:
-                    session['empleado_id'] = empleado[0]
-            elif session['is_admin']:
-                cursor.execute("SELECT id_admin FROM administradores WHERE user_id = %s", (user_data['id'],))
-                admin = cursor.fetchone()
-                if admin:
-                    session['admin_id'] = admin[0]
-            
-            return jsonify({
-                'success': True,
-                'message': 'Login exitoso',
-                'user_type': user_data['user_type'],
-                'is_admin': session['is_admin'],
-                'is_empleado': session['is_empleado'],
-                'redirect': '/admin_dashboard' if session['is_admin'] else '/employee_dashboard'
-            }), 200
-        else:
+
+        cursor = db.session.connection().connection.cursor()
+        cursor.execute("""
+            SELECT id, username, password, user_type, full_name, email, is_active
+            FROM users
+            WHERE username = %s
+        """, (username,))
+        result = cursor.fetchone()
+
+        if not result:
+            cursor.close()
             return jsonify({
                 'success': False,
-                'message': 'Usuario o contraseña incorrectos, o no tienes permisos de acceso'
+                'message': 'Usuario no encontrado'
+            }), 404
+
+        columns = ['id', 'username', 'password', 'user_type', 'full_name', 'email', 'is_active']
+        user_data = dict(zip(columns, result))
+
+        # Validar contraseña sin hashing
+        if user_data['password'] != password:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'message': 'Contraseña incorrecta'
             }), 401
-            
+
+        # Validar estado activo
+        if not user_data['is_active']:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'message': 'El usuario está inactivo'
+            }), 403
+
+        # Inicializar datos de sesión
+        session.clear()
+        session['user'] = user_data['username']
+        session['user_id'] = user_data['id']
+        session['user_name'] = user_data['full_name']
+        session['user_type'] = user_data['user_type']
+        session['is_admin'] = user_data['user_type'] == 'admin'
+        session['is_empleado'] = user_data['user_type'] == 'empleado'
+
+        # Guardar información completa (evita error de JSON inválido)
+        session['user_data'] = {
+            'id': user_data['id'],
+            'username': user_data['username'],
+            'full_name': user_data['full_name'],
+            'email': user_data['email'],
+            'user_type': user_data['user_type']
+        }
+
+        # Obtener IDs relacionados si aplica
+        if session['is_empleado']:
+            cursor.execute("SELECT id_empleado FROM empleados WHERE user_id = %s", (user_data['id'],))
+            empleado = cursor.fetchone()
+            if empleado:
+                session['empleado_id'] = empleado[0]
+        elif session['is_admin']:
+            cursor.execute("SELECT id_admin FROM administradores WHERE user_id = %s", (user_data['id'],))
+            admin = cursor.fetchone()
+            if admin:
+                session['admin_id'] = admin[0]
+
+        # Actualizar fecha de último login
+        cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = %s", (user_data['id'],))
+        db.session.commit()
+        cursor.close()
+
+        print("🟢 Sesión guardada:", session.get('user'))
+
+        # Responder
+        return jsonify({
+            'success': True,
+            'message': 'Inicio de sesión exitoso',
+            'user_type': user_data['user_type'],
+            'redirect': '/admin_dashboard' if session['is_admin'] else '/employee_dashboard'
+        }), 200
+
     except Exception as e:
-        print(f"Error en login: {str(e)}")
+        db.session.rollback()
+        print(f"❌ Error en login: {str(e)}")
         return jsonify({
             'success': False,
-            'message': 'Error en el servidor'
+            'message': 'Error interno del servidor'
         }), 500
+
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -1287,116 +1339,6 @@ def get_cotizacion_completa(cotizacion_id):
         return jsonify({
             'success': False,
             'message': 'Error obteniendo cotización'
-        }), 500
-
-
-@app.route('/api/cotizaciones/<int:cotizacion_id>/aprobar', methods=['POST'])
-def aprobar_cotizacion(cotizacion_id):
-    """Aprobar cotización y convertirla en evento"""
-    auth_check = require_login()
-    if auth_check:
-        return auth_check
-    
-    try:
-        data = request.get_json()
-        id_cliente = data.get('id_cliente')  # Ahora sí es obligatorio
-        
-        if not id_cliente:
-            return jsonify({
-                'success': False,
-                'message': 'Debe seleccionar un cliente para aprobar la cotización'
-            }), 400
-        
-        cursor = db.session.connection().connection.cursor()
-        
-        # Obtener cotización
-        cursor.execute("""
-            SELECT * FROM cotizaciones WHERE id_cotizacion = %s
-        """, (cotizacion_id,))
-        
-        cotizacion = cursor.fetchone()
-        if not cotizacion:
-            return jsonify({'success': False, 'message': 'Cotización no encontrada'}), 404
-        
-        # Generar número de evento
-        cursor.execute("SELECT COUNT(*) FROM eventos WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)")
-        count = cursor.fetchone()[0] + 1
-        numero_evento = f"EVT-{datetime.now().year}-{count:04d}"
-        
-        # Crear evento desde la cotización
-        cursor.execute("""
-            INSERT INTO eventos (numero_evento, id_cotizacion, id_cliente, id_empleado_asignado,
-                               fecha_evento, hora_inicio, hora_fin, lugar_evento, numero_invitados,
-                               estado, monto_total, notas)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'confirmado', %s, %s)
-            RETURNING id_evento
-        """, (
-            numero_evento,
-            cotizacion_id,
-            id_cliente,
-            cotizacion[2],  # id_empleado
-            cotizacion[4],  # fecha_evento
-            cotizacion[5],  # hora_inicio
-            cotizacion[6],  # hora_fin
-            cotizacion[7],  # lugar_evento
-            cotizacion[8],  # numero_invitados
-            cotizacion[9],  # monto_total
-            cotizacion[13]  # notas
-        ))
-        
-        evento_id = cursor.fetchone()[0]
-        
-        # Copiar artículos de cotización a evento
-        cursor.execute("""
-            SELECT id_articulo, cantidad, precio_unitario
-            FROM cotizacion_articulos
-            WHERE id_cotizacion = %s
-        """, (cotizacion_id,))
-        
-        articulos_cot = cursor.fetchall()
-        for art in articulos_cot:
-            cursor.execute("""
-                INSERT INTO evento_articulos (id_evento, id_articulo, cantidad_solicitada, 
-                                            precio_unitario, estado_articulo)
-                VALUES (%s, %s, %s, %s, 'reservado')
-            """, (evento_id, art[0], art[1], art[2]))
-        
-        # Copiar servicios
-        cursor.execute("""
-            SELECT id_servicio, cantidad_horas, precio_unitario
-            FROM cotizacion_servicios
-            WHERE id_cotizacion = %s
-        """, (cotizacion_id,))
-        
-        servicios_cot = cursor.fetchall()
-        for serv in servicios_cot:
-            cursor.execute("""
-                INSERT INTO evento_servicios (id_evento, id_servicio, horas_contratadas, precio_unitario)
-                VALUES (%s, %s, %s, %s)
-            """, (evento_id, serv[0], serv[1], serv[2]))
-        
-        # Actualizar estado de cotización
-        cursor.execute("""
-            UPDATE cotizaciones 
-            SET estado = 'aprobada', id_evento_generado = %s
-            WHERE id_cotizacion = %s
-        """, (evento_id, cotizacion_id))
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Cotización aprobada y evento creado exitosamente',
-            'evento_id': evento_id,
-            'numero_evento': numero_evento
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error aprobando cotización: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
         }), 500
 
 
@@ -4166,6 +4108,15 @@ def eliminar_evento(evento_id):
                 'message': 'Evento no encontrado'
             }), 404
         
+        # PASO 1: Limpiar la referencia en cotizaciones
+        # Poner NULL en id_evento_generado para las cotizaciones que apuntan a este evento
+        cursor.execute("""
+            UPDATE cotizaciones 
+            SET id_evento_generado = NULL, estado = 'enviada'
+            WHERE id_evento_generado = %s
+        """, (evento_id,))
+        
+        # PASO 2: Ahora sí eliminar el evento
         # PostgreSQL con ON DELETE CASCADE manejará las eliminaciones relacionadas
         # Esto eliminará automáticamente:
         # - evento_articulos
@@ -5027,6 +4978,576 @@ def actualizar_estado_articulo_individual(evento_id, detalle_id):
         db.session.rollback()
         print(f"Error en actualizar_estado_articulo_individual: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
+    
+@app.route('/api/cotizaciones/<int:cotizacion_id>/aprobar', methods=['POST'])
+def aprobar_cotizacion_directa(cotizacion_id):
+    """Aprobar cotización y convertirla en evento"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener cotización con el cliente
+        cursor.execute("""
+            SELECT id_cotizacion, numero_cotizacion, id_cliente, id_empleado, 
+                   fecha_evento, hora_inicio, hora_fin, lugar_evento, 
+                   numero_invitados, monto_total, descuento, estado, 
+                   fecha_cotizacion, notas
+            FROM cotizaciones 
+            WHERE id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        cotizacion = cursor.fetchone()
+        if not cotizacion:
+            return jsonify({'success': False, 'message': 'Cotización no encontrada'}), 404
+        
+        # Extraer valores de la cotización
+        id_cliente = cotizacion[2]  # id_cliente
+        id_empleado = cotizacion[3]  # id_empleado
+        fecha_evento = cotizacion[4]
+        hora_inicio = cotizacion[5]
+        hora_fin = cotizacion[6]
+        lugar_evento = cotizacion[7]
+        numero_invitados = cotizacion[8]
+        monto_total = cotizacion[9]
+        notas = cotizacion[13]
+        
+        # Validar que la cotización tenga un cliente asignado
+        if not id_cliente:
+            return jsonify({
+                'success': False,
+                'message': 'La cotización debe tener un cliente asignado para ser aprobada'
+            }), 400
+        
+        # Generar número de evento
+        cursor.execute("SELECT COUNT(*) FROM eventos WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)")
+        count = cursor.fetchone()[0] + 1
+        numero_evento = f"EVT-{datetime.now().year}-{count:04d}"
+        
+        # Crear evento desde la cotización
+        cursor.execute("""
+            INSERT INTO eventos (numero_evento, id_cotizacion, id_cliente, id_empleado_asignado,
+                               fecha_evento, hora_inicio, hora_fin, lugar_evento, numero_invitados,
+                               estado, monto_total, notas)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'confirmado', %s, %s)
+            RETURNING id_evento
+        """, (
+            numero_evento,
+            cotizacion_id,
+            id_cliente,
+            id_empleado,
+            fecha_evento,
+            hora_inicio,
+            hora_fin,
+            lugar_evento,
+            numero_invitados,
+            monto_total,
+            notas
+        ))
+        
+        evento_id = cursor.fetchone()[0]
+        
+        # Copiar artículos de cotización a evento
+        cursor.execute("""
+            SELECT id_articulo, cantidad, precio_unitario
+            FROM cotizacion_articulos
+            WHERE id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        articulos_cot = cursor.fetchall()
+        for art in articulos_cot:
+            cursor.execute("""
+                INSERT INTO evento_articulos (id_evento, id_articulo, cantidad_solicitada, 
+                                            precio_unitario, estado_articulo)
+                VALUES (%s, %s, %s, %s, 'reservado')
+            """, (evento_id, art[0], art[1], art[2]))
+        
+        # Copiar servicios
+        cursor.execute("""
+            SELECT id_servicio, cantidad_horas, precio_unitario
+            FROM cotizacion_servicios
+            WHERE id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        servicios_cot = cursor.fetchall()
+        for serv in servicios_cot:
+            cursor.execute("""
+                INSERT INTO evento_servicios (id_evento, id_servicio, horas_contratadas, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (evento_id, serv[0], serv[1], serv[2]))
+        
+        # Actualizar estado de cotización
+        cursor.execute("""
+            UPDATE cotizaciones 
+           SET estado = 'aprobada', id_evento_generado = %s
+            WHERE id_cotizacion = %s
+        """, (evento_id, cotizacion_id))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cotización aprobada y evento creado exitosamente',
+            'evento_id': evento_id,
+            'numero_evento': numero_evento
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error aprobando cotización: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# ====================================================================
+# ENDPOINT PRINCIPAL: REPORTAR PROBLEMAS EN LOTE (CORREGIDO)
+# ====================================================================
+from flask import request, jsonify, session
+from datetime import datetime
+import traceback
+
+@app.route('/api/eventos/<int:id_evento>/reportar-problemas-lote', methods=['POST'])
+def reportar_problemas_lote(id_evento):
+    """
+    Registra múltiples problemas de artículos en un solo request
+    """
+    try:
+        # =============================
+        # 1. Verificar usuario autenticado
+        # =============================
+        if 'user' not in session:
+            return jsonify({'success': False, 'message': 'Usuario no autenticado'}), 401
+
+        user_id = session.get('user_id')
+        username = session.get('user')
+        user_type = session.get('user_type')
+
+        if not user_id or not username:
+            return jsonify({'success': False, 'message': 'Sesión inválida o incompleta'}), 400
+
+        print(f"✅ Usuario autenticado: {username} (ID {user_id}, tipo {user_type})")
+
+        # =============================
+        # 2. Leer datos del cuerpo
+        # =============================
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({'success': False, 'message': 'No se recibieron datos válidos'}), 400
+
+        problemas = data.get('problemas', [])
+        costo_total = float(data.get('costo_total', 0))
+
+        if not isinstance(problemas, list) or len(problemas) == 0:
+            return jsonify({'success': False, 'message': 'Debe incluir al menos un problema'}), 400
+
+        cursor = db.session.connection().connection.cursor()
+
+        # =============================
+        # 3. Validar que el evento existe
+        # =============================
+        cursor.execute("""
+            SELECT id_evento, numero_evento, id_cliente, fecha_evento, lugar_evento
+            FROM eventos
+            WHERE id_evento = %s
+        """, (id_evento,))
+        evento = cursor.fetchone()
+
+        if not evento:
+            return jsonify({'success': False, 'message': 'Evento no encontrado'}), 404
+
+        # =============================
+        # 4. Validar cada problema
+        # =============================
+        errors = []
+        tipos_validos = ['roto', 'perdido', 'dañado', 'faltante', 'equivocado']
+        responsables_validos = ['cliente', 'empresa', 'proveedor']
+
+        for idx, problema in enumerate(problemas):
+            id_detalle = problema.get('id_detalle')
+            id_articulo = problema.get('id_articulo')
+            tipo_problema = problema.get('tipo_problema')
+            cantidad_afectada = int(problema.get('cantidad_afectada', 0))
+            responsable = problema.get('responsable')
+
+            # Validar existencia del detalle
+            cursor.execute("""
+                SELECT ea.id_detalle, ea.id_evento, ea.cantidad_solicitada, 
+                       a.nombre_articulo, a.codigo
+                FROM evento_articulos ea
+                JOIN articulos a ON ea.id_articulo = a.id_articulo
+                WHERE ea.id_detalle = %s
+            """, (id_detalle,))
+            detalle = cursor.fetchone()
+
+            if not detalle:
+                errors.append({'index': idx, 'mensaje': 'Detalle de artículo no encontrado'})
+                continue
+
+            detalle_id_evento = detalle[1]
+            cantidad_solicitada = detalle[2]
+            nombre_articulo = detalle[3]
+
+            if detalle_id_evento != id_evento:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'mensaje': 'El artículo no pertenece a este evento'
+                })
+                continue
+
+            if cantidad_afectada <= 0:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'campo': 'cantidad_afectada',
+                    'mensaje': 'La cantidad debe ser mayor a 0'
+                })
+
+            if cantidad_afectada > cantidad_solicitada:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'campo': 'cantidad_afectada',
+                    'mensaje': f'La cantidad ({cantidad_afectada}) excede la cantidad del evento ({cantidad_solicitada})'
+                })
+
+            if tipo_problema not in tipos_validos:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'campo': 'tipo_problema',
+                    'mensaje': f"Tipo inválido. Debe ser uno de: {', '.join(tipos_validos)}"
+                })
+
+            if responsable not in responsables_validos:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'campo': 'responsable',
+                    'mensaje': f"Responsable inválido. Debe ser uno de: {', '.join(responsables_validos)}"
+                })
+
+        if errors:
+            return jsonify({'success': False, 'message': 'Errores de validación', 'errors': errors}), 400
+
+        # =============================
+        # 5. Procesar y registrar cada problema
+        # =============================
+        reportes_creados = []
+
+        for problema in problemas:
+            id_detalle = problema['id_detalle']
+            id_articulo = problema['id_articulo']
+            tipo_problema = problema['tipo_problema']
+            cantidad_afectada = int(problema['cantidad_afectada'])
+            responsable = problema['responsable']
+            costo_unitario = float(problema['costo_unitario'])
+
+            costo_problema = cantidad_afectada * costo_unitario
+
+            # Obtener datos del artículo
+            cursor.execute("""
+                SELECT codigo, nombre_articulo, cantidad_disponible, cantidad_dañada
+                FROM articulos
+                WHERE id_articulo = %s
+            """, (id_articulo,))
+            articulo = cursor.fetchone()
+            codigo, nombre_articulo, cantidad_disponible, cantidad_dañada = articulo
+
+            # Insertar reporte
+            cursor.execute("""
+                INSERT INTO reportes_problemas (
+                    id_evento, id_articulo, tipo_problema, descripcion_problema,
+                    responsable, costo_problema, estado_reporte, fecha_reporte, reportado_por
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, 'abierto', %s, %s)
+                RETURNING id_reporte
+            """, (
+                id_evento,
+                id_articulo,
+                tipo_problema,
+                f"Reportado en lote: {cantidad_afectada} unidad(es) tipo '{tipo_problema}'",
+                responsable,
+                costo_problema,
+                datetime.now(),
+                user_id
+            ))
+
+            id_reporte = cursor.fetchone()[0]
+
+            # Actualizar estado del artículo
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = 'con_problemas'
+                WHERE id_detalle = %s
+            """, (id_detalle,))
+
+            # Actualizar inventario
+            if tipo_problema == 'perdido':
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = cantidad_disponible - %s
+                    WHERE id_articulo = %s
+                """, (cantidad_afectada, id_articulo))
+                tipo_mov = 'perdido'
+
+            elif tipo_problema in ['roto', 'dañado']:
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = cantidad_disponible - %s,
+                        cantidad_dañada = cantidad_dañada + %s
+                    WHERE id_articulo = %s
+                """, (cantidad_afectada, cantidad_afectada, id_articulo))
+                tipo_mov = 'dañado'
+            else:
+                tipo_mov = tipo_problema
+
+            # Registrar movimiento inventario
+            cursor.execute("""
+                INSERT INTO movimientos_inventario (
+                    id_articulo, id_evento, tipo_movimiento, cantidad,
+                    responsable, observaciones, fecha_movimiento
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                id_articulo,
+                id_evento,
+                tipo_mov,
+                cantidad_afectada,
+                responsable,
+                f"Reporte de problema en lote: {tipo_problema}. Cantidad: {cantidad_afectada}",
+                datetime.now()
+            ))
+
+            reportes_creados.append({
+                'id_reporte': id_reporte,
+                'id_articulo': id_articulo,
+                'codigo': codigo,
+                'nombre_articulo': nombre_articulo,
+                'tipo_problema': tipo_problema,
+                'cantidad': cantidad_afectada,
+                'responsable': responsable,
+                'costo': float(costo_problema)
+            })
+
+        db.session.commit()
+
+        # =============================
+        # 6. Generar PDF
+        # =============================
+        pdf_filename = generar_pdf_reporte_problemas(
+            id_evento=id_evento,
+            numero_evento=evento[1],
+            problemas=reportes_creados,
+            costo_total=costo_total,
+            cursor=cursor
+        )
+
+        pdf_url = f"/downloads/{pdf_filename}"
+
+        return jsonify({
+            'success': True,
+            'reportes_creados': len(reportes_creados),
+            'costo_total': float(costo_total),
+            'pdf_url': pdf_url,
+            'detalles': reportes_creados
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error en reportar_problemas_lote: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+
+# ====================================================================
+# FUNCIÓN AUXILIAR: GENERAR PDF
+# ====================================================================
+
+def generar_pdf_reporte_problemas(id_evento, numero_evento, problemas, costo_total, cursor):
+    """
+    Genera un PDF con el reporte de problemas
+    """
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    
+    # Obtener información del evento
+    cursor.execute("""
+        SELECT e.fecha_evento, e.lugar_evento, c.nombre as cliente_nombre
+        FROM eventos e
+        LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+        WHERE e.id_evento = %s
+    """, (id_evento,))
+    
+    evento_info = cursor.fetchone()
+    fecha_evento = evento_info[0] if evento_info[0] else 'N/A'
+    lugar_evento = evento_info[1] if evento_info[1] else 'No especificado'
+    cliente_nombre = evento_info[2] if evento_info[2] else 'N/A'
+    
+    # Crear directorio si no existe
+    pdf_dir = os.path.join('static', 'downloads')
+    os.makedirs(pdf_dir, exist_ok=True)
+    
+    # Nombre del archivo
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f"reporte-problemas-{numero_evento}-{timestamp}.pdf"
+    filepath = os.path.join(pdf_dir, filename)
+    
+    # Crear documento PDF
+    doc = SimpleDocTemplate(filepath, pagesize=letter)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # TÍTULO
+    title = Paragraph(
+        f"<b>REPORTE DE PROBLEMAS - {numero_evento}</b>",
+        styles['Title']
+    )
+    elements.append(title)
+    elements.append(Spacer(1, 20))
+    
+    # INFORMACIÓN DEL EVENTO
+    info_evento = f"""
+    <b>Cliente:</b> {cliente_nombre}<br/>
+    <b>Fecha del Evento:</b> {fecha_evento.strftime('%d/%m/%Y') if hasattr(fecha_evento, 'strftime') else fecha_evento}<br/>
+    <b>Lugar:</b> {lugar_evento}<br/>
+    <b>Fecha del Reporte:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}
+    """
+    info_p = Paragraph(info_evento, styles['Normal'])
+    elements.append(info_p)
+    elements.append(Spacer(1, 30))
+    
+    # TÍTULO DE TABLA
+    subtitle = Paragraph("<b>Detalle de Problemas Reportados:</b>", styles['Heading2'])
+    elements.append(subtitle)
+    elements.append(Spacer(1, 10))
+    
+    # CREAR TABLA
+    data = [['Código', 'Artículo', 'Tipo', 'Cant.', 'Responsable', 'Costo']]
+    
+    for problema in problemas:
+        nombre_corto = problema['nombre_articulo'][:30] + '...' if len(problema['nombre_articulo']) > 30 else problema['nombre_articulo']
+        data.append([
+            problema['codigo'],
+            nombre_corto,
+            problema['tipo_problema'].upper(),
+            str(problema['cantidad']),
+            problema['responsable'].capitalize(),
+            f"Q{problema['costo']:.2f}"
+        ])
+    
+    # Fila de total
+    data.append(['', '', '', '', 'TOTAL:', f"Q{costo_total:.2f}"])
+    
+    # Crear tabla
+    table = Table(data, colWidths=[60, 180, 70, 40, 80, 70])
+    table.setStyle(TableStyle([
+        # Encabezado
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EF4444')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        # Filas de datos
+        ('BACKGROUND', (0, 1), (-1, -2), colors.HexColor('#FEE2E2')),
+        ('GRID', (0, 0), (-1, -2), 1, colors.black),
+        # Fila de total
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#FECACA')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, -1), (-1, -1), 11),
+        ('SPAN', (0, -1), (4, -1)),
+        ('GRID', (0, -1), (-1, -1), 2, colors.black)
+    ]))
+    
+    elements.append(table)
+    elements.append(Spacer(1, 40))
+    
+    # NOTA
+    nota = Paragraph(
+        "<i>Nota: Este reporte debe ser firmado por el responsable y archivado "
+        "junto con la documentación del evento.</i>",
+        styles['Normal']
+    )
+    elements.append(nota)
+    elements.append(Spacer(1, 30))
+    
+    # FIRMAS
+    firmas = """
+    <br/><br/><br/>
+    _________________________&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    _________________________<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Firma Responsable&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    Firma Verificador
+    """
+    firmas_p = Paragraph(firmas, styles['Normal'])
+    elements.append(firmas_p)
+    
+    # Construir PDF
+    doc.build(elements)
+    
+    return filename
+
+
+# ====================================================================
+# ENDPOINT: DESCARGAR PDF
+# ====================================================================
+
+@app.route('/downloads/<filename>')
+def download_pdf(filename):
+    """
+    Endpoint para descargar archivos PDF generados
+    """
+    try:
+        pdf_path = os.path.join('static', 'downloads', filename)
+        
+        if not os.path.exists(pdf_path):
+            return jsonify({'error': 'Archivo no encontrado'}), 404
+        
+        return send_file(
+            pdf_path,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        print(f"Error descargando PDF: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/eventos/<int:id_evento>/articulos/<int:id_detalle>/revertir-estado', methods=['POST'])
+def revertir_estado_articulo(id_evento, id_detalle):
+    """Cambiar estado del artículo de 'con_problemas' a 'reservado'"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Actualizar estado
+        cursor.execute("""
+            UPDATE evento_articulos
+            SET estado_articulo = 'reservado'
+            WHERE id_detalle = %s AND id_evento = %s
+        """, (id_detalle, id_evento))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Estado revertido a reservado'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error revirtiendo estado: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error al revertir estado'}), 500
         
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5050))
