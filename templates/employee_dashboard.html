@@ -1544,6 +1544,40 @@
             border-color: #EF4444;
         }
 
+        /* Estilos para modales de visualización */
+        .view-data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .view-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .view-field label {
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .view-field span {
+            font-size: 1rem;
+            color: var(--text-primary);
+            padding: 0.5rem;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+
     </style>
 </head>
 <body>
@@ -2217,6 +2251,8 @@
     <div id="eventoModal" class="modal">
         <div class="modal-content" style="max-width: 1200px; width: 95%;">
             <div class="modal-header">
+            <input type="hidden" id="evento-modo" value="agregar">
+            <input type="hidden" id="evento-id-actual" value="">
                 <h2>Nuevo Evento</h2>
                 <span class="close" onclick="closeModal('eventoModal')">&times;</span>
             </div>
@@ -2617,6 +2653,467 @@
         </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════ -->
+<!-- MODALES PARA EDITAR Y VISUALIZAR -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+
+<!-- Modal Editar Evento -->
+<div id="editarEventoModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-header">
+            <h2>Editar Evento</h2>
+            <span class="close" onclick="closeModal('editarEventoModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="evento-form-container">
+                <!-- Sección 1: Datos generales -->
+                <div class="form-section">
+                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                    <form id="editar-evento-form">
+                        <!-- Toggle para cliente -->
+                        <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <div style="display: flex; gap: 2rem; align-items: center;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                    <input type="radio" name="edit-cliente-tipo" value="existente" checked onchange="toggleEditClienteForm('existente')">
+                                    <span>Seleccionar cliente existente</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                    <input type="radio" name="edit-cliente-tipo" value="nuevo" onchange="toggleEditClienteForm('nuevo')">
+                                    <span>Crear nuevo cliente</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Cliente existente -->
+                        <div id="edit-cliente-existente-section">
+                            <div class="form-group">
+                                <label>Cliente <span class="required">*</span></label>
+                                <select class="form-control" id="edit-evento-cliente">
+                                    <option value="">Seleccionar cliente...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Nuevo cliente -->
+                        <div id="edit-cliente-nuevo-section" class="hidden">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Nombre del Cliente <span class="required">*</span></label>
+                                    <input type="text" class="form-control" id="edit-nuevo-cliente-nombre" placeholder="Nombre completo">
+                                </div>
+                                <div class="form-group">
+                                    <label>Teléfono</label>
+                                    <input type="text" class="form-control" id="edit-nuevo-cliente-telefono" placeholder="Ej: 1234-5678">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Dirección</label>
+                                <textarea class="form-control" id="edit-nuevo-cliente-direccion" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Notas sobre el cliente</label>
+                                <textarea class="form-control" id="edit-nuevo-cliente-notas" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Datos del evento -->
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Fecha del Evento <span class="required">*</span></label>
+                                <input type="date" class="form-control" id="edit-evento-fecha" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Hora Inicio</label>
+                                <input type="time" class="form-control" id="edit-evento-hora-inicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Hora Fin</label>
+                                <input type="time" class="form-control" id="edit-evento-hora-fin">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Lugar del Evento</label>
+                            <input type="text" class="form-control" id="edit-evento-lugar">
+                        </div>
+                        <div class="form-group">
+                            <label>Número de Invitados</label>
+                            <input type="number" class="form-control" id="edit-evento-invitados" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Notas</label>
+                            <textarea class="form-control" id="edit-evento-notas" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Artículos y Servicios -->
+                <div class="form-section">
+                    <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
+                    
+                    <div class="section-toggles">
+                        <div class="toggle-item">
+                            <input type="checkbox" id="edit-toggleArticulos" onchange="toggleEditEventoSection('edit-articulos-section')">
+                            <label for="edit-toggleArticulos">Incluir Artículos</label>
+                        </div>
+                        <div class="toggle-item">
+                            <input type="checkbox" id="edit-toggleServicios" onchange="toggleEditEventoSection('edit-servicios-section')">
+                            <label for="edit-toggleServicios">Incluir Servicios</label>
+                        </div>
+                    </div>
+
+                    <div id="edit-articulos-section" class="selection-section hidden">
+                        <h4>Seleccionar Artículos</h4>
+                        <div class="search-bar">
+                            <input type="text" class="form-control" id="edit-search-articulos" placeholder="Buscar...">
+                        </div>
+                        <div class="items-grid" id="edit-articulos-grid"></div>
+                    </div>
+
+                    <div id="edit-servicios-section" class="selection-section hidden">
+                        <h4>Seleccionar Servicios</h4>
+                        <div class="items-grid" id="edit-servicios-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Carrito -->
+                <div class="form-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Resumen del Evento</h3>
+                    <div class="cart-container">
+                        <table class="cart-table">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th>Precio Unitario</th>
+                                    <th>Cantidad</th>
+                                    <th>Subtotal</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="edit-cart-body">
+                                <tr class="empty-cart">
+                                    <td colspan="5" class="text-center text-muted">No hay elementos</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="cart-total">
+                            <h4>Total: Q<span id="edit-cart-total">0.00</span></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('editarEventoModal')">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="actualizarEvento()">
+                <i class="fas fa-save"></i> Actualizar Evento
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Visualizar Evento -->
+<div id="visualizarEventoModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-header">
+            <h2>Detalle del Evento</h2>
+            <span class="close" onclick="closeModal('visualizarEventoModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="evento-form-container">
+                <!-- Datos generales -->
+                <div class="form-section">
+                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                    <div class="view-data-grid">
+                        <div class="view-field">
+                            <label>Cliente:</label>
+                            <span id="view-evento-cliente">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Fecha:</label>
+                            <span id="view-evento-fecha">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Hora Inicio:</label>
+                            <span id="view-evento-hora-inicio">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Hora Fin:</label>
+                            <span id="view-evento-hora-fin">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Lugar:</label>
+                            <span id="view-evento-lugar">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Invitados:</label>
+                            <span id="view-evento-invitados">-</span>
+                        </div>
+                        <div class="view-field" style="grid-column: 1 / -1;">
+                            <label>Notas:</label>
+                            <span id="view-evento-notas">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Carrito -->
+                <div class="form-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Artículos y Servicios</h3>
+                    <div class="cart-container">
+                        <table class="cart-table">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th>Precio Unitario</th>
+                                    <th>Cantidad</th>
+                                    <th>Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="view-cart-body">
+                                <tr class="empty-cart">
+                                    <td colspan="4" class="text-center text-muted">No hay elementos</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="cart-total">
+                            <h4>Total: Q<span id="view-cart-total">0.00</span></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('visualizarEventoModal')">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Cotización -->
+<div id="editarCotizacionModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-header">
+            <h2>Editar Cotización</h2>
+            <span class="close" onclick="closeModal('editarCotizacionModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="evento-form-container">
+                <!-- Datos generales -->
+                <div class="form-section">
+                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                    <form id="editar-cotizacion-form">
+                        <!-- Toggle cliente -->
+                        <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <div style="display: flex; gap: 2rem; align-items: center;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                    <input type="radio" name="edit-cot-cliente-tipo" value="existente" checked onchange="toggleEditCotClienteForm('existente')">
+                                    <span>Cliente existente</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                    <input type="radio" name="edit-cot-cliente-tipo" value="nuevo" onchange="toggleEditCotClienteForm('nuevo')">
+                                    <span>Nuevo cliente</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="edit-cot-cliente-existente-section">
+                            <div class="form-group">
+                                <label>Cliente</label>
+                                <select class="form-control" id="edit-cot-cliente">
+                                    <option value="">Seleccionar...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="edit-cot-cliente-nuevo-section" class="hidden">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Nombre del Cliente</label>
+                                    <input type="text" class="form-control" id="edit-cot-nuevo-cliente-nombre">
+                                </div>
+                                <div class="form-group">
+                                    <label>Teléfono</label>
+                                    <input type="text" class="form-control" id="edit-cot-nuevo-cliente-telefono">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Dirección</label>
+                                <textarea class="form-control" id="edit-cot-nuevo-cliente-direccion" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Notas</label>
+                                <textarea class="form-control" id="edit-cot-nuevo-cliente-notas" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Fecha del Evento</label>
+                                <input type="date" class="form-control" id="edit-cot-fecha">
+                            </div>
+                            <div class="form-group">
+                                <label>Hora Inicio</label>
+                                <input type="time" class="form-control" id="edit-cot-hora-inicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Hora Fin</label>
+                                <input type="time" class="form-control" id="edit-cot-hora-fin">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Lugar</label>
+                            <input type="text" class="form-control" id="edit-cot-lugar">
+                        </div>
+                        <div class="form-group">
+                            <label>Invitados</label>
+                            <input type="number" class="form-control" id="edit-cot-invitados" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Notas</label>
+                            <textarea class="form-control" id="edit-cot-notas" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Artículos y Servicios -->
+                <div class="form-section">
+                    <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
+                    
+                    <div class="section-toggles">
+                        <div class="toggle-item">
+                            <input type="checkbox" id="edit-cot-toggleArticulos" onchange="toggleEditCotSection('edit-cot-articulos-section')">
+                            <label for="edit-cot-toggleArticulos">Incluir Artículos</label>
+                        </div>
+                        <div class="toggle-item">
+                            <input type="checkbox" id="edit-cot-toggleServicios" onchange="toggleEditCotSection('edit-cot-servicios-section')">
+                            <label for="edit-cot-toggleServicios">Incluir Servicios</label>
+                        </div>
+                    </div>
+
+                    <div id="edit-cot-articulos-section" class="selection-section hidden">
+                        <h4>Artículos</h4>
+                        <div class="search-bar">
+                            <input type="text" class="form-control" id="edit-cot-search-articulos" placeholder="Buscar...">
+                        </div>
+                        <div class="items-grid" id="edit-cot-articulos-grid"></div>
+                    </div>
+
+                    <div id="edit-cot-servicios-section" class="selection-section hidden">
+                        <h4>Servicios</h4>
+                        <div class="items-grid" id="edit-cot-servicios-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Carrito -->
+                <div class="form-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Resumen</h3>
+                    <div class="cart-container">
+                        <table class="cart-table">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th>Precio</th>
+                                    <th>Cantidad</th>
+                                    <th>Subtotal</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="edit-cot-cart-body">
+                                <tr class="empty-cart">
+                                    <td colspan="5" class="text-center text-muted">No hay elementos</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="cart-total">
+                            <h4>Total: Q<span id="edit-cot-cart-total">0.00</span></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('editarCotizacionModal')">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="actualizarCotizacion()">
+                <i class="fas fa-save"></i> Actualizar Cotización
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Visualizar Cotización -->
+<div id="visualizarCotizacionModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-header">
+            <h2>Detalle de Cotización</h2>
+            <span class="close" onclick="closeModal('visualizarCotizacionModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="evento-form-container">
+                <!-- Datos -->
+                <div class="form-section">
+                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                    <div class="view-data-grid">
+                        <div class="view-field">
+                            <label>Cliente:</label>
+                            <span id="view-cot-cliente">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Fecha:</label>
+                            <span id="view-cot-fecha">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Hora Inicio:</label>
+                            <span id="view-cot-hora-inicio">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Hora Fin:</label>
+                            <span id="view-cot-hora-fin">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Lugar:</label>
+                            <span id="view-cot-lugar">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Invitados:</label>
+                            <span id="view-cot-invitados">-</span>
+                        </div>
+                        <div class="view-field" style="grid-column: 1 / -1;">
+                            <label>Notas:</label>
+                            <span id="view-cot-notas">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Carrito -->
+                <div class="form-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Artículos y Servicios</h3>
+                    <div class="cart-container">
+                        <table class="cart-table">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th>Precio</th>
+                                    <th>Cantidad</th>
+                                    <th>Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="view-cot-cart-body">
+                                <tr class="empty-cart">
+                                    <td colspan="4" class="text-center text-muted">No hay elementos</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="cart-total">
+                            <h4>Total: Q<span id="view-cot-cart-total">0.00</span></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('visualizarCotizacionModal')">Cerrar</button>
+        </div>
+    </div>
+</div>
+
     <!-- Modal Nuevo Artículo -->
     <div id="articuloModal" class="modal">
         <div class="modal-content">
@@ -2676,107 +3173,6 @@
         </div>
     </div>
 
-    <!-- Modal Editar Evento -->
-    <div id="editarEventoModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Editar Evento</h2>
-                <span class="close" onclick="closeModal('editarEventoModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="editar-evento-form">
-                    <input type="hidden" id="edit-evento-id">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Cliente</label>
-                            <select class="form-control" id="edit-evento-cliente" required>
-                                <option value="">Seleccionar cliente...</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Fecha del Evento</label>
-                            <input type="date" class="form-control" id="edit-evento-fecha" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Hora Inicio</label>
-                            <input type="time" class="form-control" id="edit-evento-hora-inicio">
-                        </div>
-                        <div class="form-group">
-                            <label>Hora Fin</label>
-                            <input type="time" class="form-control" id="edit-evento-hora-fin">
-                        </div>
-                        <div class="form-group">
-                            <label>Estado</label>
-                            <select class="form-control" id="edit-evento-estado">
-                                <option value="reservado">Reservado</option>
-                                <option value="confirmado">Confirmado</option>
-                                <option value="en_preparacion">En Preparación</option>
-                                <option value="pendiente_entrega">Pendiente Entrega</option>
-                                <option value="entregado">Entregado</option>
-                                <option value="completado">Completado</option>
-                                <option value="cancelado">Cancelado</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Número de Invitados</label>
-                            <input type="number" class="form-control" id="edit-evento-invitados" min="1">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Lugar del Evento</label>
-                        <input type="text" class="form-control" id="edit-evento-lugar">
-                    </div>
-                    <div class="form-group">
-                        <label>Notas</label>
-                        <textarea class="form-control" id="edit-evento-notas" rows="3"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('editarEventoModal')">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="actualizarEvento()">
-                    <i class="fas fa-save"></i>
-                    Actualizar Evento
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Ver Detalle Evento -->
-    <div id="detalleEventoModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Detalle del Evento</h2>
-                <span class="close" onclick="closeModal('detalleEventoModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="detalle-evento-content">
-                    <!-- Content will be loaded dynamically -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('detalleEventoModal')">Cerrar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Ver Cotización -->
-    <div id="detalleCotizacionModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Detalle de Cotización</h2>
-                <span class="close" onclick="closeModal('detalleCotizacionModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="detalle-cotizacion-content">
-                    <!-- Content will be loaded dynamically -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('detalleCotizacionModal')">Cerrar</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Modal Convertir Cotización a Evento -->
     <div id="convertirEventoModal" class="modal">
@@ -3523,10 +3919,10 @@
                         </button>
                     </td>
                     <td>
-                        <button class="btn btn-primary btn-sm" onclick="verEvento(${evento.id_evento})" title="Ver Detalle">
+                        <button class="btn btn-icon btn-view" onclick="verDetalleEvento(${evento.id_evento})" title="Ver detalles">
                             <i class="fas fa-eye"></i>
                         </button>
-                        <button class="btn btn-success btn-sm" onclick="editarEvento(${evento.id_evento})" title="Editar">
+                        <button class="btn btn-icon btn-edit" onclick="abrirEdicionEvento(${evento.id_evento})"  title="Editar">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-danger btn-sm" onclick="eliminarEvento(${evento.id_evento})" title="Eliminar">
@@ -4456,18 +4852,21 @@
                 <td>Q${parseFloat(cotizacion.monto_total || 0).toFixed(2)}</td>
                 <td><span class="status-badge status-${cotizacion.estado}">${cotizacion.estado}</span></td>
                 <td>
-                    <button class="btn btn-primary btn-sm" onclick="verCotizacionCompleta(${cotizacion.id_cotizacion})" title="Ver Detalle">
+                    <button class="btn btn-icon btn-view" onclick="verDetalleCotizacion(${cotizacion.id_cotizacion})" title="Ver">
                         <i class="fas fa-eye"></i>
                     </button>
                     <button class="btn btn-success btn-sm" onclick="descargarCotizacionPDF(${cotizacion.id_cotizacion})" title="Descargar PDF">
                         <i class="fas fa-download"></i>
                     </button>
                     ${cotizacion.estado === 'enviada' || cotizacion.estado === 'borrador' ? `
-                        <button class="btn btn-warning btn-sm" onclick="editarCotizacion(${cotizacion.id_cotizacion})" title="Editar">
+                        <button class="btn btn-icon btn-edit" onclick="abrirEdicionCotizacion(${cotizacion.id_cotizacion})" title="Editar">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-info btn-sm" onclick="aprobarCotizacion(${cotizacion.id_cotizacion})" title="Aprobar">
                             <i class="fas fa-check"></i>
+                        </button>
+                                                <button class="btn btn-danger btn-sm" onclick="eliminarCotizacion(${cotizacion.id_cotizacion})" title="Eliminar">
+                            <i class="fas fa-trash"></i>
                         </button>
                     ` : ''}
                     ${cotizacion.estado === 'borrador' || cotizacion.estado === 'rechazada' ? `
@@ -7479,6 +7878,883 @@ function limpiarFormularioCotizacion() {
     articulosLoadedCot = false;
     serviciosLoadedCot = false;
 }
+
+// ════════════════════════════════════════════════════════════════
+// MODALES INDEPENDIENTES PARA EDITAR Y VISUALIZAR
+// ════════════════════════════════════════════════════════════════
+
+// Variables para carritos independientes
+let editEventoCart = [];
+let viewEventoCart = [];
+let editCotizacionCart = [];
+let viewCotizacionCart = [];
+let idEventoEditar = null;
+let idCotizacionEditar = null;
+
+// ─────────────────── EDITAR EVENTO ───────────────────
+
+async function abrirEdicionEvento(idEvento) {
+    try {
+        idEventoEditar = idEvento;
+        
+        // Obtener datos del evento
+        const response = await fetch(`/api/eventos/${idEvento}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            Swal.fire('Error', 'No se pudo cargar el evento', 'error');
+            return;
+        }
+        
+        const evento = data.evento;
+        
+        // Cargar clientes en el select
+        await cargarClientesParaEditar();
+        
+        // Cargar datos en formulario
+        if (evento.id_cliente) {
+            document.querySelector('input[name="edit-cliente-tipo"][value="existente"]').checked = true;
+            toggleEditClienteForm('existente');
+            document.getElementById('edit-evento-cliente').value = evento.id_cliente;
+        } else {
+            document.querySelector('input[name="edit-cliente-tipo"][value="nuevo"]').checked = true;
+            toggleEditClienteForm('nuevo');
+            document.getElementById('edit-nuevo-cliente-nombre').value = evento.nombre_cliente || '';
+            document.getElementById('edit-nuevo-cliente-telefono').value = evento.telefono_cliente || '';
+            document.getElementById('edit-nuevo-cliente-direccion').value = evento.direccion_cliente || '';
+            document.getElementById('edit-nuevo-cliente-notas').value = evento.notas_cliente || '';
+        }
+        
+        document.getElementById('edit-evento-fecha').value = evento.fecha_evento || '';
+        document.getElementById('edit-evento-hora-inicio').value = evento.hora_inicio || '';
+        document.getElementById('edit-evento-hora-fin').value = evento.hora_fin || '';
+        document.getElementById('edit-evento-lugar').value = evento.lugar_evento || '';
+        document.getElementById('edit-evento-invitados').value = evento.numero_invitados || '';
+        document.getElementById('edit-evento-notas').value = evento.notas || '';
+        
+        // Cargar carrito desde la base de datos
+        editEventoCart = [];
+        if (evento.articulos) {
+            evento.articulos.forEach(art => {
+                editEventoCart.push({
+                    tipo: 'articulo',
+                    id: art.id_articulo,
+                    nombre: art.nombre_articulo,
+                    precio: parseFloat(art.precio_unitario),
+                    cantidad: parseInt(art.cantidad)
+                });
+            });
+        }
+        if (evento.servicios) {
+            evento.servicios.forEach(serv => {
+                editEventoCart.push({
+                    tipo: 'servicio',
+                    id: serv.id_servicio,
+                    nombre: serv.nombre_servicio,
+                    precio: parseFloat(serv.precio_unitario),
+                    cantidad: parseInt(serv.cantidad_horas)
+                });
+            });
+        }
+        
+        renderEditEventoCart();
+        openModal('editarEventoModal');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error al cargar el evento', 'error');
+    }
+}
+
+function renderEditEventoCart() {
+    const tbody = document.getElementById('edit-cart-body');
+    
+    if (editEventoCart.length === 0) {
+        tbody.innerHTML = '<tr class="empty-cart"><td colspan="5" class="text-center text-muted">No hay elementos</td></tr>';
+        document.getElementById('edit-cart-total').textContent = '0.00';
+        return;
+    }
+    
+    let total = 0;
+    tbody.innerHTML = editEventoCart.map((item, index) => {
+        const subtotal = item.precio * item.cantidad;
+        total += subtotal;
+        return `
+            <tr>
+                <td><strong>${item.nombre}</strong><br><small>${item.tipo === 'articulo' ? 'Artículo' : 'Servicio'}</small></td>
+                <td>Q${item.precio.toFixed(2)}</td>
+                <td>
+                    <div class="quantity-control">
+                        <button class="btn btn-sm" onclick="updateEditEventoQty(${index}, -1)">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <input type="number" class="qty-input" value="${item.cantidad}" min="1" onchange="setEditEventoQty(${index}, this.value)">
+                        <button class="btn btn-sm" onclick="updateEditEventoQty(${index}, 1)">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </td>
+                <td><strong>Q${subtotal.toFixed(2)}</strong></td>
+                <td>
+                    <button class="btn btn-danger btn-sm" onclick="removeFromEditEventoCart(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    document.getElementById('edit-cart-total').textContent = total.toFixed(2);
+}
+
+function updateEditEventoQty(index, delta) {
+    editEventoCart[index].cantidad += delta;
+    if (editEventoCart[index].cantidad <= 0) {
+        editEventoCart.splice(index, 1);
+    }
+    renderEditEventoCart();
+}
+
+function setEditEventoQty(index, value) {
+    const cantidad = parseInt(value);
+    if (isNaN(cantidad) || cantidad < 1) {
+        renderEditEventoCart();
+        return;
+    }
+    editEventoCart[index].cantidad = cantidad;
+    renderEditEventoCart();
+}
+
+function removeFromEditEventoCart(index) {
+    editEventoCart.splice(index, 1);
+    renderEditEventoCart();
+}
+
+function toggleEditClienteForm(tipo) {
+    const existenteSection = document.getElementById('edit-cliente-existente-section');
+    const nuevoSection = document.getElementById('edit-cliente-nuevo-section');
+    
+    if (tipo === 'existente') {
+        existenteSection.classList.remove('hidden');
+        nuevoSection.classList.add('hidden');
+    } else {
+        existenteSection.classList.add('hidden');
+        nuevoSection.classList.remove('hidden');
+    }
+}
+
+function toggleEditEventoSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    section.classList.toggle('hidden');
+    
+    if (!section.classList.contains('hidden') && sectionId === 'edit-articulos-section') {
+        cargarArticulosParaEditar();
+    } else if (!section.classList.contains('hidden') && sectionId === 'edit-servicios-section') {
+        cargarServiciosParaEditar();
+    }
+}
+
+async function cargarClientesParaEditar() {
+    try {
+        const response = await fetch('/api/clientes');
+        const data = await response.json();
+        
+        const select = document.getElementById('edit-evento-cliente');
+        select.innerHTML = '<option value="">Seleccionar cliente...</option>';
+        
+        if (data.clientes) {
+            data.clientes.forEach(cliente => {
+                const option = document.createElement('option');
+                option.value = cliente.id_cliente;
+                option.textContent = `${cliente.nombre}${cliente.telefono ? ' - ' + cliente.telefono : ''}`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error cargando clientes:', error);
+    }
+}
+
+async function cargarArticulosParaEditar() {
+    try {
+        const response = await fetch('/api/articulos');
+        const data = await response.json();
+        
+        const grid = document.getElementById('edit-articulos-grid');
+        if (data.articulos && data.articulos.length > 0) {
+            grid.innerHTML = data.articulos.map(art => `
+                <div class="item-card">
+                    <div class="item-header">
+                        <strong>${art.nombre_articulo}</strong>
+                        <span class="item-code">${art.codigo}</span>
+                    </div>
+                    <div class="item-body">
+                        <p class="item-description">${art.descripcion || 'Sin descripción'}</p>
+                        <div class="item-price">Q${parseFloat(art.precio).toFixed(2)}</div>
+                    </div>
+                    <div class="item-footer">
+                        <button class="btn btn-sm btn-primary" onclick="agregarAEditEventoCart('articulo', ${art.id_articulo}, '${art.nombre_articulo}', ${art.precio})">
+                            <i class="fas fa-plus"></i> Agregar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            grid.innerHTML = '<p class="text-muted">No hay artículos disponibles</p>';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+async function cargarServiciosParaEditar() {
+    try {
+        const response = await fetch('/api/servicios');
+        const data = await response.json();
+        
+        const grid = document.getElementById('edit-servicios-grid');
+        if (data.servicios && data.servicios.length > 0) {
+            grid.innerHTML = data.servicios.map(serv => `
+                <div class="item-card">
+                    <div class="item-header">
+                        <strong>${serv.nombre_servicio}</strong>
+                        <span class="item-code">${serv.codigo}</span>
+                    </div>
+                    <div class="item-body">
+                        <p class="item-description">${serv.descripcion || 'Sin descripción'}</p>
+                        <div class="item-price">Q${parseFloat(serv.precio_hora).toFixed(2)}/hora</div>
+                    </div>
+                    <div class="item-footer">
+                        <button class="btn btn-sm btn-primary" onclick="agregarAEditEventoCart('servicio', ${serv.id_servicio}, '${serv.nombre_servicio}', ${serv.precio_hora})">
+                            <i class="fas fa-plus"></i> Agregar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            grid.innerHTML = '<p class="text-muted">No hay servicios disponibles</p>';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+function agregarAEditEventoCart(tipo, id, nombre, precio) {
+    const existe = editEventoCart.find(item => item.tipo === tipo && item.id === id);
+    
+    if (existe) {
+        existe.cantidad++;
+    } else {
+        editEventoCart.push({
+            tipo: tipo,
+            id: id,
+            nombre: nombre,
+            precio: parseFloat(precio),
+            cantidad: 1
+        });
+    }
+    
+    renderEditEventoCart();
+}
+
+async function actualizarEvento() {
+    try {
+        if (!idEventoEditar) {
+            Swal.fire('Error', 'No se pudo identificar el evento', 'error');
+            return;
+        }
+        
+        const tipoCliente = document.querySelector('input[name="edit-cliente-tipo"]:checked').value;
+        let idCliente = null;
+        let nuevoCliente = null;
+        
+        if (tipoCliente === 'existente') {
+            idCliente = document.getElementById('edit-evento-cliente').value;
+            if (!idCliente) {
+                Swal.fire('Error', 'Debe seleccionar un cliente', 'error');
+                return;
+            }
+        } else {
+            const nombre = document.getElementById('edit-nuevo-cliente-nombre').value.trim();
+            if (!nombre) {
+                Swal.fire('Error', 'Debe ingresar el nombre del cliente', 'error');
+                return;
+            }
+            nuevoCliente = {
+                nombre: nombre,
+                telefono: document.getElementById('edit-nuevo-cliente-telefono').value.trim(),
+                direccion: document.getElementById('edit-nuevo-cliente-direccion').value.trim(),
+                notas: document.getElementById('edit-nuevo-cliente-notas').value.trim()
+            };
+        }
+        
+        if (editEventoCart.length === 0) {
+            Swal.fire('Error', 'Debe agregar al menos un artículo o servicio', 'error');
+            return;
+        }
+        
+        const eventoData = {
+            id_cliente: idCliente,
+            nuevo_cliente: nuevoCliente,
+            fecha_evento: document.getElementById('edit-evento-fecha').value,
+            hora_inicio: document.getElementById('edit-evento-hora-inicio').value,
+            hora_fin: document.getElementById('edit-evento-hora-fin').value,
+            lugar_evento: document.getElementById('edit-evento-lugar').value.trim(),
+            numero_invitados: document.getElementById('edit-evento-invitados').value,
+            notas: document.getElementById('edit-evento-notas').value.trim(),
+            articulos: editEventoCart.filter(item => item.tipo === 'articulo').map(item => ({
+                id_articulo: item.id,
+                cantidad: item.cantidad,
+                precio_unitario: item.precio
+            })),
+            servicios: editEventoCart.filter(item => item.tipo === 'servicio').map(item => ({
+                id_servicio: item.id,
+                cantidad_horas: item.cantidad,
+                precio_unitario: item.precio
+            }))
+        };
+        
+        const response = await fetch(`/api/eventos/${idEventoEditar}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(eventoData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Evento Actualizado',
+                text: 'El evento se actualizó correctamente'
+            });
+            closeModal('editarEventoModal');
+            limpiarEditEventoModal();
+            loadEventos();
+        } else {
+            Swal.fire('Error', data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error al actualizar el evento', 'error');
+    }
+}
+
+function limpiarEditEventoModal() {
+    editEventoCart = [];
+    idEventoEditar = null;
+    document.getElementById('editar-evento-form').reset();
+    renderEditEventoCart();
+}
+
+// ─────────────────── VISUALIZAR EVENTO ───────────────────
+
+async function verDetalleEvento(idEvento) {
+    try {
+        const response = await fetch(`/api/eventos/${idEvento}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            Swal.fire('Error', 'No se pudo cargar el evento', 'error');
+            return;
+        }
+        
+        const evento = data.evento;
+        
+        // Cargar datos
+        document.getElementById('view-evento-cliente').textContent = evento.nombre_cliente || 'Cliente no especificado';
+        document.getElementById('view-evento-fecha').textContent = evento.fecha_evento || '-';
+        document.getElementById('view-evento-hora-inicio').textContent = evento.hora_inicio || '-';
+        document.getElementById('view-evento-hora-fin').textContent = evento.hora_fin || '-';
+        document.getElementById('view-evento-lugar').textContent = evento.lugar_evento || '-';
+        document.getElementById('view-evento-invitados').textContent = evento.numero_invitados || '-';
+        document.getElementById('view-evento-notas').textContent = evento.notas || '-';
+        
+        // Cargar carrito
+        viewEventoCart = [];
+        if (evento.articulos) {
+            evento.articulos.forEach(art => {
+                viewEventoCart.push({
+                    tipo: 'articulo',
+                    nombre: art.nombre_articulo,
+                    precio: parseFloat(art.precio_unitario),
+                    cantidad: parseInt(art.cantidad)
+                });
+            });
+        }
+        if (evento.servicios) {
+            evento.servicios.forEach(serv => {
+                viewEventoCart.push({
+                    tipo: 'servicio',
+                    nombre: serv.nombre_servicio,
+                    precio: parseFloat(serv.precio_unitario),
+                    cantidad: parseInt(serv.cantidad_horas)
+                });
+            });
+        }
+        
+        renderViewEventoCart();
+        openModal('visualizarEventoModal');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error al cargar el evento', 'error');
+    }
+}
+
+function renderViewEventoCart() {
+    const tbody = document.getElementById('view-cart-body');
+    
+    if (viewEventoCart.length === 0) {
+        tbody.innerHTML = '<tr class="empty-cart"><td colspan="4" class="text-center text-muted">No hay elementos</td></tr>';
+        document.getElementById('view-cart-total').textContent = '0.00';
+        return;
+    }
+    
+    let total = 0;
+    tbody.innerHTML = viewEventoCart.map(item => {
+        const subtotal = item.precio * item.cantidad;
+        total += subtotal;
+        return `
+            <tr>
+                <td><strong>${item.nombre}</strong><br><small>${item.tipo === 'articulo' ? 'Artículo' : 'Servicio'}</small></td>
+                <td>Q${item.precio.toFixed(2)}</td>
+                <td>${item.cantidad}</td>
+                <td><strong>Q${subtotal.toFixed(2)}</strong></td>
+            </tr>
+        `;
+    }).join('');
+    
+    document.getElementById('view-cart-total').textContent = total.toFixed(2);
+}
+
+// ─────────────────── EDITAR COTIZACIÓN ───────────────────
+
+async function abrirEdicionCotizacion(idCotizacion) {
+    try {
+        idCotizacionEditar = idCotizacion;
+        
+        const response = await fetch(`/api/cotizaciones/${idCotizacion}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            Swal.fire('Error', 'No se pudo cargar la cotización', 'error');
+            return;
+        }
+        
+        const cotizacion = data.cotizacion;
+        
+        await cargarClientesParaEditarCot();
+        
+        if (cotizacion.id_cliente) {
+            document.querySelector('input[name="edit-cot-cliente-tipo"][value="existente"]').checked = true;
+            toggleEditCotClienteForm('existente');
+            document.getElementById('edit-cot-cliente').value = cotizacion.id_cliente;
+        } else {
+            document.querySelector('input[name="edit-cot-cliente-tipo"][value="nuevo"]').checked = true;
+            toggleEditCotClienteForm('nuevo');
+            document.getElementById('edit-cot-nuevo-cliente-nombre').value = cotizacion.nombre_cliente || '';
+            document.getElementById('edit-cot-nuevo-cliente-telefono').value = cotizacion.telefono_cliente || '';
+            document.getElementById('edit-cot-nuevo-cliente-direccion').value = cotizacion.direccion_cliente || '';
+            document.getElementById('edit-cot-nuevo-cliente-notas').value = cotizacion.notas_cliente || '';
+        }
+        
+        document.getElementById('edit-cot-fecha').value = cotizacion.fecha_evento || '';
+        document.getElementById('edit-cot-hora-inicio').value = cotizacion.hora_inicio || '';
+        document.getElementById('edit-cot-hora-fin').value = cotizacion.hora_fin || '';
+        document.getElementById('edit-cot-lugar').value = cotizacion.lugar_evento || '';
+        document.getElementById('edit-cot-invitados').value = cotizacion.numero_invitados || '';
+        document.getElementById('edit-cot-notas').value = cotizacion.notas || '';
+        
+        editCotizacionCart = [];
+        if (cotizacion.articulos) {
+            cotizacion.articulos.forEach(art => {
+                editCotizacionCart.push({
+                    tipo: 'articulo',
+                    id: art.id_articulo,
+                    nombre: art.nombre_articulo,
+                    precio: parseFloat(art.precio_unitario),
+                    cantidad: parseInt(art.cantidad)
+                });
+            });
+        }
+        if (cotizacion.servicios) {
+            cotizacion.servicios.forEach(serv => {
+                editCotizacionCart.push({
+                    tipo: 'servicio',
+                    id: serv.id_servicio,
+                    nombre: serv.nombre_servicio,
+                    precio: parseFloat(serv.precio_unitario),
+                    cantidad: parseInt(serv.cantidad_horas)
+                });
+            });
+        }
+        
+        renderEditCotizacionCart();
+        openModal('editarCotizacionModal');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error al cargar la cotización', 'error');
+    }
+}
+
+function renderEditCotizacionCart() {
+    const tbody = document.getElementById('edit-cot-cart-body');
+    
+    if (editCotizacionCart.length === 0) {
+        tbody.innerHTML = '<tr class="empty-cart"><td colspan="5" class="text-center text-muted">No hay elementos</td></tr>';
+        document.getElementById('edit-cot-cart-total').textContent = '0.00';
+        return;
+    }
+    
+    let total = 0;
+    tbody.innerHTML = editCotizacionCart.map((item, index) => {
+        const subtotal = item.precio * item.cantidad;
+        total += subtotal;
+        return `
+            <tr>
+                <td><strong>${item.nombre}</strong><br><small>${item.tipo === 'articulo' ? 'Artículo' : 'Servicio'}</small></td>
+                <td>Q${item.precio.toFixed(2)}</td>
+                <td>
+                    <div class="quantity-control">
+                        <button class="btn btn-sm" onclick="updateEditCotQty(${index}, -1)">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <input type="number" class="qty-input" value="${item.cantidad}" min="1" onchange="setEditCotQty(${index}, this.value)">
+                        <button class="btn btn-sm" onclick="updateEditCotQty(${index}, 1)">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </td>
+                <td><strong>Q${subtotal.toFixed(2)}</strong></td>
+                <td>
+                    <button class="btn btn-danger btn-sm" onclick="removeFromEditCotCart(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    document.getElementById('edit-cot-cart-total').textContent = total.toFixed(2);
+}
+
+function updateEditCotQty(index, delta) {
+    editCotizacionCart[index].cantidad += delta;
+    if (editCotizacionCart[index].cantidad <= 0) {
+        editCotizacionCart.splice(index, 1);
+    }
+    renderEditCotizacionCart();
+}
+
+function setEditCotQty(index, value) {
+    const cantidad = parseInt(value);
+    if (isNaN(cantidad) || cantidad < 1) {
+        renderEditCotizacionCart();
+        return;
+    }
+    editCotizacionCart[index].cantidad = cantidad;
+    renderEditCotizacionCart();
+}
+
+function removeFromEditCotCart(index) {
+    editCotizacionCart.splice(index, 1);
+    renderEditCotizacionCart();
+}
+
+function toggleEditCotClienteForm(tipo) {
+    const existenteSection = document.getElementById('edit-cot-cliente-existente-section');
+    const nuevoSection = document.getElementById('edit-cot-cliente-nuevo-section');
+    
+    if (tipo === 'existente') {
+        existenteSection.classList.remove('hidden');
+        nuevoSection.classList.add('hidden');
+    } else {
+        existenteSection.classList.add('hidden');
+        nuevoSection.classList.remove('hidden');
+    }
+}
+
+function toggleEditCotSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    section.classList.toggle('hidden');
+    
+    if (!section.classList.contains('hidden') && sectionId === 'edit-cot-articulos-section') {
+        cargarArticulosParaEditarCot();
+    } else if (!section.classList.contains('hidden') && sectionId === 'edit-cot-servicios-section') {
+        cargarServiciosParaEditarCot();
+    }
+}
+
+async function cargarClientesParaEditarCot() {
+    try {
+        const response = await fetch('/api/clientes');
+        const data = await response.json();
+        
+        const select = document.getElementById('edit-cot-cliente');
+        select.innerHTML = '<option value="">Seleccionar cliente...</option>';
+        
+        if (data.clientes) {
+            data.clientes.forEach(cliente => {
+                const option = document.createElement('option');
+                option.value = cliente.id_cliente;
+                option.textContent = `${cliente.nombre}${cliente.telefono ? ' - ' + cliente.telefono : ''}`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+async function cargarArticulosParaEditarCot() {
+    try {
+        const response = await fetch('/api/articulos');
+        const data = await response.json();
+        
+        const grid = document.getElementById('edit-cot-articulos-grid');
+        if (data.articulos && data.articulos.length > 0) {
+            grid.innerHTML = data.articulos.map(art => `
+                <div class="item-card">
+                    <div class="item-header">
+                        <strong>${art.nombre_articulo}</strong>
+                        <span class="item-code">${art.codigo}</span>
+                    </div>
+                    <div class="item-body">
+                        <p class="item-description">${art.descripcion || ''}</p>
+                        <div class="item-price">Q${parseFloat(art.precio).toFixed(2)}</div>
+                    </div>
+                    <div class="item-footer">
+                        <button class="btn btn-sm btn-primary" onclick="agregarAEditCotCart('articulo', ${art.id_articulo}, '${art.nombre_articulo}', ${art.precio})">
+                            <i class="fas fa-plus"></i> Agregar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+async function cargarServiciosParaEditarCot() {
+    try {
+        const response = await fetch('/api/servicios');
+        const data = await response.json();
+        
+        const grid = document.getElementById('edit-cot-servicios-grid');
+        if (data.servicios && data.servicios.length > 0) {
+            grid.innerHTML = data.servicios.map(serv => `
+                <div class="item-card">
+                    <div class="item-header">
+                        <strong>${serv.nombre_servicio}</strong>
+                        <span class="item-code">${serv.codigo}</span>
+                    </div>
+                    <div class="item-body">
+                        <p class="item-description">${serv.descripcion || ''}</p>
+                        <div class="item-price">Q${parseFloat(serv.precio_hora).toFixed(2)}/hora</div>
+                    </div>
+                    <div class="item-footer">
+                        <button class="btn btn-sm btn-primary" onclick="agregarAEditCotCart('servicio', ${serv.id_servicio}, '${serv.nombre_servicio}', ${serv.precio_hora})">
+                            <i class="fas fa-plus"></i> Agregar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+function agregarAEditCotCart(tipo, id, nombre, precio) {
+    const existe = editCotizacionCart.find(item => item.tipo === tipo && item.id === id);
+    
+    if (existe) {
+        existe.cantidad++;
+    } else {
+        editCotizacionCart.push({
+            tipo: tipo,
+            id: id,
+            nombre: nombre,
+            precio: parseFloat(precio),
+            cantidad: 1
+        });
+    }
+    
+    renderEditCotizacionCart();
+}
+
+async function actualizarCotizacion() {
+    try {
+        if (!idCotizacionEditar) {
+            Swal.fire('Error', 'No se pudo identificar la cotización', 'error');
+            return;
+        }
+        
+        const tipoCliente = document.querySelector('input[name="edit-cot-cliente-tipo"]:checked').value;
+        let idCliente = null;
+        let nuevoCliente = null;
+        
+        if (tipoCliente === 'existente') {
+            idCliente = document.getElementById('edit-cot-cliente').value;
+            if (!idCliente) {
+                Swal.fire('Error', 'Debe seleccionar un cliente', 'error');
+                return;
+            }
+        } else {
+            const nombre = document.getElementById('edit-cot-nuevo-cliente-nombre').value.trim();
+            if (!nombre) {
+                Swal.fire('Error', 'Debe ingresar el nombre del cliente', 'error');
+                return;
+            }
+            nuevoCliente = {
+                nombre: nombre,
+                telefono: document.getElementById('edit-cot-nuevo-cliente-telefono').value.trim(),
+                direccion: document.getElementById('edit-cot-nuevo-cliente-direccion').value.trim(),
+                notas: document.getElementById('edit-cot-nuevo-cliente-notas').value.trim()
+            };
+        }
+        
+        if (editCotizacionCart.length === 0) {
+            Swal.fire('Error', 'Debe agregar al menos un artículo o servicio', 'error');
+            return;
+        }
+        
+        const cotizacionData = {
+            id_cliente: idCliente,
+            nuevo_cliente: nuevoCliente,
+            fecha_evento: document.getElementById('edit-cot-fecha').value,
+            hora_inicio: document.getElementById('edit-cot-hora-inicio').value,
+            hora_fin: document.getElementById('edit-cot-hora-fin').value,
+            lugar_evento: document.getElementById('edit-cot-lugar').value.trim(),
+            numero_invitados: document.getElementById('edit-cot-invitados').value,
+            notas: document.getElementById('edit-cot-notas').value.trim(),
+            articulos: editCotizacionCart.filter(item => item.tipo === 'articulo').map(item => ({
+                id_articulo: item.id,
+                cantidad: item.cantidad,
+                precio_unitario: item.precio
+            })),
+            servicios: editCotizacionCart.filter(item => item.tipo === 'servicio').map(item => ({
+                id_servicio: item.id,
+                cantidad_horas: item.cantidad,
+                precio_unitario: item.precio
+            }))
+        };
+        
+        const response = await fetch(`/api/cotizaciones/${idCotizacionEditar}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cotizacionData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Cotización Actualizada',
+                text: 'La cotización se actualizó correctamente'
+            });
+            closeModal('editarCotizacionModal');
+            limpiarEditCotModal();
+            loadCotizaciones();
+        } else {
+            Swal.fire('Error', data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error al actualizar la cotización', 'error');
+    }
+}
+
+function limpiarEditCotModal() {
+    editCotizacionCart = [];
+    idCotizacionEditar = null;
+    document.getElementById('editar-cotizacion-form').reset();
+    renderEditCotizacionCart();
+}
+
+// ─────────────────── VISUALIZAR COTIZACIÓN ───────────────────
+
+async function verDetalleCotizacion(idCotizacion) {
+    try {
+        const response = await fetch(`/api/cotizaciones/${idCotizacion}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            Swal.fire('Error', 'No se pudo cargar la cotización', 'error');
+            return;
+        }
+        
+        const cotizacion = data.cotizacion;
+        
+        document.getElementById('view-cot-cliente').textContent = cotizacion.nombre_cliente || 'No especificado';
+        document.getElementById('view-cot-fecha').textContent = cotizacion.fecha_evento || '-';
+        document.getElementById('view-cot-hora-inicio').textContent = cotizacion.hora_inicio || '-';
+        document.getElementById('view-cot-hora-fin').textContent = cotizacion.hora_fin || '-';
+        document.getElementById('view-cot-lugar').textContent = cotizacion.lugar_evento || '-';
+        document.getElementById('view-cot-invitados').textContent = cotizacion.numero_invitados || '-';
+        document.getElementById('view-cot-notas').textContent = cotizacion.notas || '-';
+        
+        viewCotizacionCart = [];
+        if (cotizacion.articulos) {
+            cotizacion.articulos.forEach(art => {
+                viewCotizacionCart.push({
+                    tipo: 'articulo',
+                    nombre: art.nombre_articulo,
+                    precio: parseFloat(art.precio_unitario),
+                    cantidad: parseInt(art.cantidad)
+                });
+            });
+        }
+        if (cotizacion.servicios) {
+            cotizacion.servicios.forEach(serv => {
+                viewCotizacionCart.push({
+                    tipo: 'servicio',
+                    nombre: serv.nombre_servicio,
+                    precio: parseFloat(serv.precio_unitario),
+                    cantidad: parseInt(serv.cantidad_horas)
+                });
+            });
+        }
+        
+        renderViewCotizacionCart();
+        openModal('visualizarCotizacionModal');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error al cargar la cotización', 'error');
+    }
+}
+
+function renderViewCotizacionCart() {
+    const tbody = document.getElementById('view-cot-cart-body');
+    
+    if (viewCotizacionCart.length === 0) {
+        tbody.innerHTML = '<tr class="empty-cart"><td colspan="4" class="text-center text-muted">No hay elementos</td></tr>';
+        document.getElementById('view-cot-cart-total').textContent = '0.00';
+        return;
+    }
+    
+    let total = 0;
+    tbody.innerHTML = viewCotizacionCart.map(item => {
+        const subtotal = item.precio * item.cantidad;
+        total += subtotal;
+        return `
+            <tr>
+                <td><strong>${item.nombre}</strong><br><small>${item.tipo === 'articulo' ? 'Artículo' : 'Servicio'}</small></td>
+                <td>Q${item.precio.toFixed(2)}</td>
+                <td>${item.cantidad}</td>
+                <td><strong>Q${subtotal.toFixed(2)}</strong></td>
+            </tr>
+        `;
+    }).join('');
+    
+    document.getElementById('view-cot-cart-total').textContent = total.toFixed(2);
+}
+
 
     </script>
 </body>
