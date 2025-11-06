@@ -732,7 +732,6 @@ def get_eventos_proximos():
             FROM eventos e
             LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
             WHERE e.fecha_evento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
-            AND e.estado NOT IN ('cancelado', 'completado')
             AND (e.id_empleado_asignado = %s OR e.id_empleado_asignado IS NULL OR %s IS NULL)
             ORDER BY e.fecha_evento ASC, e.hora_inicio ASC
             LIMIT 5
@@ -1328,6 +1327,75 @@ def get_articulos():
         return jsonify({
             'success': False,
             'message': 'Error obteniendo artículos'
+        }), 500
+    
+@app.route('/api/articulos', methods=['POST'])
+def crear_articulo():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        
+        # Validar campos requeridos
+        required_fields = ['codigo', 'nombre_articulo', 'id_categoria', 'precio_unitario', 'cantidad_total']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({
+                    'success': False,
+                    'message': f'El campo {field} es requerido'
+                }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar si el código ya existe
+        cursor.execute(
+            "SELECT id_articulo FROM articulos WHERE codigo = %s",
+            (data['codigo'],)
+        )
+        
+        if cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': 'Ya existe un artículo con ese código'
+            }), 400
+        
+        # Insertar nuevo artículo
+        cursor.execute("""
+            INSERT INTO articulos (
+                codigo, nombre_articulo, descripcion, id_categoria,
+                cantidad_total, cantidad_disponible, cantidad_dañada,
+                precio_unitario, costo_reposicion, estado
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'activo')
+            RETURNING id_articulo
+        """, (
+            data['codigo'],
+            data['nombre_articulo'],
+            data.get('descripcion', ''),
+            data['id_categoria'],
+            data['cantidad_total'],
+            data['cantidad_total'],  # cantidad_disponible = cantidad_total inicialmente
+            0,  # cantidad_dañada = 0 inicialmente
+            data['precio_unitario'],
+            data.get('costo_reposicion', 0)
+        ))
+        
+        nuevo_id = cursor.fetchone()[0]
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Artículo creado correctamente',
+            'id_articulo': nuevo_id
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en crear_articulo: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error al crear artículo: {str(e)}'
         }), 500
 
 @app.route('/api/articulos/<int:articulo_id>/movimiento', methods=['POST'])
@@ -5517,6 +5585,67 @@ def actualizar_evento_completo(id_evento):
         print(f"Error: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
+
+@app.route('/api/eventos/<int:id_evento>/estado', methods=['PATCH'])
+def cambiar_estado_evento(id_evento):
+    """Cambiar solo el estado de un evento"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.json
+        nuevo_estado = data.get('estado')
+        
+        if not nuevo_estado:
+            return jsonify({
+                'success': False,
+                'message': 'El campo estado es requerido'
+            }), 400
+        
+        # Validar que el estado sea válido
+        estados_validos = ['reservado', 'confirmado', 'en_proceso', 'completado', 'cancelado', 'pendiente_pago']
+        if nuevo_estado not in estados_validos:
+            return jsonify({
+                'success': False,
+                'message': f'Estado inválido. Estados válidos: {", ".join(estados_validos)}'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el evento existe
+        cursor.execute(
+            "SELECT id_evento FROM eventos WHERE id_evento = %s",
+            (id_evento,)
+        )
+        
+        if not cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': 'Evento no encontrado'
+            }), 404
+        
+        # Actualizar solo el estado
+        cursor.execute("""
+            UPDATE eventos 
+            SET estado = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id_evento = %s
+        """, (nuevo_estado, id_evento))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Estado del evento cambiado a {nuevo_estado}'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en cambiar_estado_evento: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error al cambiar estado: {str(e)}'
+        }), 500
 
 @app.route('/api/cotizaciones/<int:id_cotizacion>', methods=['GET'])
 def obtener_detalle_cotizacion(id_cotizacion):
