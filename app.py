@@ -951,84 +951,6 @@ def get_evento_detail(evento_id):
             'message': 'Error obteniendo detalle de evento'
         }), 500
 
-@app.route('/api/eventos/<int:evento_id>', methods=['PUT'])
-def update_evento(evento_id):
-    auth_check = require_login()
-    if auth_check:
-        return auth_check
-    
-    try:
-        data = request.get_json()
-        cursor = db.session.connection().connection.cursor()
-        
-        # Campos actualizables
-        update_fields = []
-        params = []
-        
-        if 'fecha_evento' in data:
-            update_fields.append("fecha_evento = %s")
-            params.append(data['fecha_evento'])
-            
-        if 'hora_inicio' in data:
-            update_fields.append("hora_inicio = %s")
-            params.append(data['hora_inicio'])
-            
-        if 'hora_fin' in data:
-            update_fields.append("hora_fin = %s")
-            params.append(data['hora_fin'])
-            
-        if 'lugar_evento' in data:
-            update_fields.append("lugar_evento = %s")
-            params.append(data['lugar_evento'])
-            
-        if 'numero_invitados' in data:
-            update_fields.append("numero_invitados = %s")
-            params.append(data['numero_invitados'])
-            
-        if 'estado' in data:
-            update_fields.append("estado = %s")
-            params.append(data['estado'])
-            
-        if 'notas' in data:
-            update_fields.append("notas = %s")
-            params.append(data['notas'])
-            
-        if 'monto_total' in data:
-            update_fields.append("monto_total = %s")
-            params.append(data['monto_total'])
-        
-        if not update_fields:
-            return jsonify({
-                'success': False,
-                'message': 'No hay campos para actualizar'
-            }), 400
-        
-        update_fields.append("updated_at = CURRENT_TIMESTAMP")
-        params.append(evento_id)
-        
-        query = f"UPDATE eventos SET {', '.join(update_fields)} WHERE id_evento = %s"
-        cursor.execute(query, params)
-        
-        if cursor.rowcount == 0:
-            return jsonify({
-                'success': False,
-                'message': 'Evento no encontrado'
-            }), 404
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Evento actualizado exitosamente'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error actualizando evento: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': 'Error actualizando evento'
-        }), 500
 
 # ===============================================
 # ENDPOINTS COTIZACIONES
@@ -4145,108 +4067,6 @@ def eliminar_evento(evento_id):
 # ENDPOINTS PARA COTIZACIONES
 # ===============================================
 
-@app.route('/api/cotizaciones/<int:cotizacion_id>', methods=['PUT'])
-def actualizar_cotizacion(cotizacion_id):
-    """Actualizar una cotización completa"""
-    try:
-        data = request.json
-        cursor = db.session.connection().connection.cursor()
-        
-        # Verificar que la cotización existe
-        cursor.execute(
-            "SELECT id_cotizacion, estado FROM cotizaciones WHERE id_cotizacion = %s",
-            (cotizacion_id,)
-        )
-        resultado = cursor.fetchone()
-        
-        if not resultado:
-            return jsonify({
-                'success': False, 
-                'message': 'Cotización no encontrada'
-            }), 404
-        
-        # Solo permitir editar borradores y enviadas
-        estado_actual = resultado[1]
-        if estado_actual not in ['borrador', 'enviada']:
-            return jsonify({
-                'success': False, 
-                'message': 'Solo se pueden editar cotizaciones en borrador o enviadas'
-            }), 400
-        
-        # Actualizar datos principales de la cotización
-        cursor.execute("""
-            UPDATE cotizaciones 
-            SET id_cliente = %s, 
-                fecha_evento = %s, 
-                hora_inicio = %s, 
-                hora_fin = %s,
-                lugar_evento = %s, 
-                numero_invitados = %s, 
-                notas = %s, 
-                monto_total = %s
-            WHERE id_cotizacion = %s
-        """, (
-            data.get('id_cliente'),
-            data.get('fecha_evento'),
-            data.get('hora_inicio'),
-            data.get('hora_fin'),
-            data.get('lugar_evento'),
-            data.get('numero_invitados'),
-            data.get('notas'),
-            data.get('monto_total'),
-            cotizacion_id
-        ))
-        
-        # Eliminar detalles existentes (artículos y servicios)
-        cursor.execute(
-            "DELETE FROM cotizacion_articulos WHERE id_cotizacion = %s", 
-            (cotizacion_id,)
-        )
-        cursor.execute(
-            "DELETE FROM cotizacion_servicios WHERE id_cotizacion = %s", 
-            (cotizacion_id,)
-        )
-        
-        # Insertar nuevos artículos
-        articulos = data.get('articulos', [])
-        for articulo in articulos:
-            cursor.execute("""
-                INSERT INTO cotizacion_articulos 
-                (id_cotizacion, id_articulo, cantidad, precio_unitario)
-                VALUES (%s, %s, %s, %s)
-            """, (
-                cotizacion_id, 
-                articulo['id_articulo'], 
-                articulo['cantidad'], 
-                articulo['precio_unitario']
-            ))
-        
-        # Insertar nuevos servicios
-        servicios = data.get('servicios', [])
-        for servicio in servicios:
-            cursor.execute("""
-                INSERT INTO cotizacion_servicios 
-                (id_cotizacion, id_servicio, cantidad_horas, precio_unitario)
-                VALUES (%s, %s, %s, %s)
-            """, (
-                cotizacion_id, 
-                servicio['id_servicio'], 
-                servicio['cantidad'], 
-                servicio['precio_unitario']
-            ))
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True, 
-            'message': 'Cotización actualizada correctamente'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error en actualizar_cotizacion: {str(e)}")
-        return jsonify({'success': False, 'message': str(e)}), 500
-
 
 @app.route('/api/cotizaciones/<int:cotizacion_id>', methods=['DELETE'])
 def eliminar_cotizacion(cotizacion_id):
@@ -5548,7 +5368,301 @@ def revertir_estado_articulo(id_evento, id_detalle):
         db.session.rollback()
         print(f"Error revirtiendo estado: {str(e)}")
         return jsonify({'success': False, 'message': 'Error al revertir estado'}), 500
+
+
+# ════════════════════════════════════════════════════════════════
+# ENDPOINTS PARA VER DETALLE Y EDITAR
+# ════════════════════════════════════════════════════════════════
+
+@app.route('/api/eventos/<int:id_evento>', methods=['GET'])
+def obtener_detalle_evento(id_evento):
+    """Obtener detalles de un evento para ver o editar"""
+    try:
+        cursor = db.session.connection().connection.cursor()
         
+        cursor.execute("""
+            SELECT e.*, 
+                   c.nombre as nombre_cliente, 
+                   c.telefono as telefono_cliente,
+                   c.direccion as direccion_cliente
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            WHERE e.id_evento = %s
+        """, (id_evento,))
+        
+        evento_row = cursor.fetchone()
+        if not evento_row:
+            return jsonify({'success': False, 'message': 'Evento no encontrado'})
+        
+        columns = [desc[0] for desc in cursor.description]
+        evento = dict(zip(columns, evento_row))
+        
+        # Convertir tipos
+        if evento.get('fecha_evento'):
+            evento['fecha_evento'] = evento['fecha_evento'].isoformat()
+        if evento.get('hora_inicio'):
+            evento['hora_inicio'] = str(evento['hora_inicio'])[:5]
+        if evento.get('hora_fin'):
+            evento['hora_fin'] = str(evento['hora_fin'])[:5]
+        if evento.get('total'):
+            evento['total'] = float(evento['total'])
+        
+        # Artículos
+        cursor.execute("""
+            SELECT ea.*, a.nombre_articulo
+            FROM evento_articulos ea
+            JOIN articulos a ON ea.id_articulo = a.id_articulo
+            WHERE ea.id_evento = %s
+        """, (id_evento,))
+        
+        articulos = []
+        for row in cursor.fetchall():
+            art_columns = [desc[0] for desc in cursor.description]
+            articulo = dict(zip(art_columns, row))
+            articulo['precio_unitario'] = float(articulo['precio_unitario'])
+            articulos.append(articulo)
+        
+        # Servicios
+        cursor.execute("""
+            SELECT es.*, s.nombre_servicio
+            FROM evento_servicios es
+            JOIN servicios s ON es.id_servicio = s.id_servicio
+            WHERE es.id_evento = %s
+        """, (id_evento,))
+        
+        servicios = []
+        for row in cursor.fetchall():
+            serv_columns = [desc[0] for desc in cursor.description]
+            servicio = dict(zip(serv_columns, row))
+            servicio['precio_unitario'] = float(servicio['precio_unitario'])
+            servicios.append(servicio)
+        
+        evento['articulos'] = articulos
+        evento['servicios'] = servicios
+        
+        return jsonify({'success': True, 'evento': evento})
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/eventos/<int:id_evento>', methods=['PUT'])
+def actualizar_evento_completo(id_evento):
+    """Actualizar un evento existente"""
+    try:
+        data = request.json
+        cursor = db.session.connection().connection.cursor()
+        
+        # Cliente
+        id_cliente = data.get('id_cliente')
+        if not id_cliente and data.get('nuevo_cliente'):
+            cliente_data = data['nuevo_cliente']
+            cursor.execute("""
+                INSERT INTO clientes (nombre, telefono, direccion, notas)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id_cliente
+            """, (
+                cliente_data['nombre'],
+                cliente_data.get('telefono', ''),
+                cliente_data.get('direccion', ''),
+                cliente_data.get('notas', '')
+            ))
+            id_cliente = cursor.fetchone()[0]
+        
+        # Calcular total
+        total = 0
+        for art in data.get('articulos', []):
+            total += float(art['precio_unitario']) * int(art['cantidad'])
+        for serv in data.get('servicios', []):
+            total += float(serv['precio_unitario']) * int(serv['cantidad_horas'])
+        
+        # Actualizar evento
+        cursor.execute("""
+            UPDATE eventos 
+            SET id_cliente = %s, fecha_evento = %s, hora_inicio = %s,
+                hora_fin = %s, lugar_evento = %s, numero_invitados = %s, 
+                notas = %s, total = %s
+            WHERE id_evento = %s
+        """, (
+            id_cliente, data['fecha_evento'], data['hora_inicio'],
+            data['hora_fin'], data['lugar_evento'],
+            data.get('numero_invitados'), data.get('notas', ''), 
+            total, id_evento
+        ))
+        
+        # Eliminar items anteriores
+        cursor.execute("DELETE FROM evento_articulos WHERE id_evento = %s", (id_evento,))
+        cursor.execute("DELETE FROM evento_servicios WHERE id_evento = %s", (id_evento,))
+        
+        # Insertar artículos
+        for articulo in data.get('articulos', []):
+            cursor.execute("""
+                INSERT INTO evento_articulos (id_evento, id_articulo, cantidad, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (id_evento, articulo['id_articulo'], articulo['cantidad'], articulo['precio_unitario']))
+        
+        # Insertar servicios
+        for servicio in data.get('servicios', []):
+            cursor.execute("""
+                INSERT INTO evento_servicios (id_evento, id_servicio, cantidad_horas, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (id_evento, servicio['id_servicio'], servicio['cantidad_horas'], servicio['precio_unitario']))
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Evento actualizado'})
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/cotizaciones/<int:id_cotizacion>', methods=['GET'])
+def obtener_detalle_cotizacion(id_cotizacion):
+    """Obtener detalles de una cotización"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT c.*, 
+                   cl.nombre as nombre_cliente, 
+                   cl.telefono as telefono_cliente,
+                   cl.direccion as direccion_cliente
+            FROM cotizaciones c
+            LEFT JOIN clientes cl ON c.id_cliente = cl.id_cliente
+            WHERE c.id_cotizacion = %s
+        """, (id_cotizacion,))
+        
+        cotizacion_row = cursor.fetchone()
+        if not cotizacion_row:
+            return jsonify({'success': False, 'message': 'Cotización no encontrada'})
+        
+        columns = [desc[0] for desc in cursor.description]
+        cotizacion = dict(zip(columns, cotizacion_row))
+        
+        # Convertir tipos
+        if cotizacion.get('fecha_evento'):
+            cotizacion['fecha_evento'] = cotizacion['fecha_evento'].isoformat()
+        if cotizacion.get('hora_inicio'):
+            cotizacion['hora_inicio'] = str(cotizacion['hora_inicio'])[:5]
+        if cotizacion.get('hora_fin'):
+            cotizacion['hora_fin'] = str(cotizacion['hora_fin'])[:5]
+        if cotizacion.get('total'):
+            cotizacion['total'] = float(cotizacion['total'])
+        
+        # Artículos
+        cursor.execute("""
+            SELECT ca.*, a.nombre_articulo
+            FROM cotizacion_articulos ca
+            JOIN articulos a ON ca.id_articulo = a.id_articulo
+            WHERE ca.id_cotizacion = %s
+        """, (id_cotizacion,))
+        
+        articulos = []
+        for row in cursor.fetchall():
+            art_columns = [desc[0] for desc in cursor.description]
+            articulo = dict(zip(art_columns, row))
+            articulo['precio_unitario'] = float(articulo['precio_unitario'])
+            articulos.append(articulo)
+        
+        # Servicios
+        cursor.execute("""
+            SELECT cs.*, s.nombre_servicio
+            FROM cotizacion_servicios cs
+            JOIN servicios s ON cs.id_servicio = s.id_servicio
+            WHERE cs.id_cotizacion = %s
+        """, (id_cotizacion,))
+        
+        servicios = []
+        for row in cursor.fetchall():
+            serv_columns = [desc[0] for desc in cursor.description]
+            servicio = dict(zip(serv_columns, row))
+            servicio['precio_unitario'] = float(servicio['precio_unitario'])
+            servicios.append(servicio)
+        
+        cotizacion['articulos'] = articulos
+        cotizacion['servicios'] = servicios
+        
+        return jsonify({'success': True, 'cotizacion': cotizacion})
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/cotizaciones/<int:id_cotizacion>', methods=['PUT'])
+def actualizar_cotizacion_completa(id_cotizacion):
+    """Actualizar una cotización existente"""
+    try:
+        data = request.json
+        cursor = db.session.connection().connection.cursor()
+        
+        # Cliente
+        id_cliente = data.get('id_cliente')
+        if not id_cliente and data.get('nuevo_cliente'):
+            cliente_data = data['nuevo_cliente']
+            cursor.execute("""
+                INSERT INTO clientes (nombre, telefono, direccion, notas)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id_cliente
+            """, (
+                cliente_data['nombre'],
+                cliente_data.get('telefono', ''),
+                cliente_data.get('direccion', ''),
+                cliente_data.get('notas', '')
+            ))
+            id_cliente = cursor.fetchone()[0]
+        
+        # Calcular total
+        total = 0
+        for art in data.get('articulos', []):
+            total += float(art['precio_unitario']) * int(art['cantidad'])
+        for serv in data.get('servicios', []):
+            total += float(serv['precio_unitario']) * int(serv['cantidad_horas'])
+        
+        # Actualizar cotización
+        cursor.execute("""
+            UPDATE cotizaciones 
+            SET id_cliente = %s, fecha_evento = %s, hora_inicio = %s,
+                hora_fin = %s, lugar_evento = %s, numero_invitados = %s, 
+                notas = %s, total = %s
+            WHERE id_cotizacion = %s
+        """, (
+            id_cliente, data['fecha_evento'], data['hora_inicio'],
+            data['hora_fin'], data['lugar_evento'],
+            data.get('numero_invitados'), data.get('notas', ''), 
+            total, id_cotizacion
+        ))
+        
+        # Eliminar items anteriores
+        cursor.execute("DELETE FROM cotizacion_articulos WHERE id_cotizacion = %s", (id_cotizacion,))
+        cursor.execute("DELETE FROM cotizacion_servicios WHERE id_cotizacion = %s", (id_cotizacion,))
+        
+        # Insertar artículos
+        for articulo in data.get('articulos', []):
+            cursor.execute("""
+                INSERT INTO cotizacion_articulos (id_cotizacion, id_articulo, cantidad, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (id_cotizacion, articulo['id_articulo'], articulo['cantidad'], articulo['precio_unitario']))
+        
+        # Insertar servicios
+        for servicio in data.get('servicios', []):
+            cursor.execute("""
+                INSERT INTO cotizacion_servicios (id_cotizacion, id_servicio, cantidad_horas, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (id_cotizacion, servicio['id_servicio'], servicio['cantidad_horas'], servicio['precio_unitario']))
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Cotización actualizada'})
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5050))
     print("Iniciando aplicación Flask...")
