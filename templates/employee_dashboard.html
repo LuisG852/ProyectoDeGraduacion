@@ -1566,7 +1566,213 @@
             border-radius: 4px;
             border: 1px solid var(--border-color);
         }
+        /* ──────────────────────────────────────────────────────────────────
+        PAGINACIÓN - Estilos
+        ────────────────────────────────────────────────────────────────── */
 
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            flex-wrap: wrap;
+        }
+
+        .pagination-info {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-right: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pagination-info i {
+            color: var(--primary-color);
+            font-size: 1rem;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .pagination-btn {
+            background: white;
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+            padding: 0.6rem 1rem;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            min-width: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pagination-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: var(--primary-light);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+            z-index: 0;
+        }
+
+        .pagination-btn:hover::before {
+            width: 120%;
+            height: 300%;
+        }
+
+        .pagination-btn span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .pagination-btn:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+        }
+
+        .pagination-btn.active {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            color: white;
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+            transform: scale(1.05);
+        }
+
+        .pagination-btn.active:hover {
+            transform: scale(1.08);
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .pagination-btn:disabled:hover {
+            border-color: var(--border-color);
+            color: var(--text-primary);
+            box-shadow: none;
+            transform: none;
+        }
+
+        .pagination-btn i {
+            font-size: 0.9rem;
+        }
+
+        .pagination-ellipsis {
+            color: var(--text-secondary);
+            padding: 0 0.5rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        /* Items per page selector */
+        .items-per-page {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-left: 1rem;
+            padding-left: 1rem;
+            border-left: 2px solid var(--border-color);
+        }
+
+        .items-per-page label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .items-per-page select {
+            background: white;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.5rem 2rem 0.5rem 0.75rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%232563EB' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+        }
+
+        .items-per-page select:hover,
+        .items-per-page select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .pagination-container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .pagination-info {
+                margin-right: 0;
+            }
+            
+            .items-per-page {
+                margin-left: 0;
+                padding-left: 0;
+                border-left: none;
+                padding-top: 1rem;
+                border-top: 2px solid var(--border-color);
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .pagination-btn {
+                padding: 0.5rem 0.75rem;
+                min-width: 36px;
+                font-size: 0.85rem;
+            }
+        }
+
+        /* Animation for page change */
+        @keyframes fadeInTable {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .table-animated {
+            animation: fadeInTable 0.3s ease;
+        }
 
     </style>
 </head>
@@ -1739,9 +1945,8 @@
                     <select class="filter-select" id="filter-estado">
                         <option value="">Todos los estados</option>
                         <option value="reservado">Reservado</option>
-                        <option value="confirmado">Confirmado</option>
-                        <option value="completado">Completado</option>
                         <option value="cancelado">Cancelado</option>
+                        <option value="pendiente_pago">Pendiente de Pagar</option>
                     </select>
                 </div>
 
@@ -1762,7 +1967,9 @@
                             <!-- Events will be loaded here -->
                         </tbody>
                     </table>
+
                 </div>
+                <div id="pagination-eventos" class="pagination-container"></div>
             </section>
 
             <!-- Cotizaciones -->
@@ -1804,6 +2011,7 @@
                             <!-- Cotizaciones will be loaded here -->
                         </tbody>
                     </table>
+                     <div id="pagination-cotizaciones" class="pagination-container"></div>
                 </div>
             </section>
 
@@ -1823,12 +2031,14 @@
                     </div>
                     <select class="filter-select" id="filter-categoria">
                         <option value="">Todas las categorías</option>
-                        <option value="1">Mobiliario</option>
-                        <option value="2">Cristalería</option>
+                        <option value="1">Accesorios de Servicio</option>
+                        <option value="2">Cristalería y Vajilla</option>
                         <option value="3">Decoración</option>
-                        <option value="4">Audio/Video</option>
+                        <option value="4">Iluminación LED</option>
                         <option value="5">Estructuras</option>
-                        <option value="6">Cocina</option>
+                        <option value="6">Mantelería</option>
+                        <option value="7">Mobiliario</option>
+                        <option value="8">Otros Accesorios</option>
                     </select>
                 </div>
 
@@ -1849,6 +2059,7 @@
                             <!-- Articles will be loaded here -->
                         </tbody>
                     </table>
+                               <div id="pagination-articulos" class="pagination-container"></div>
                 </div>
             </section>
 
@@ -1883,6 +2094,7 @@
                             <!-- Clients will be loaded here -->
                         </tbody>
                     </table>
+                     <div id="pagination-clientes" class="pagination-container"></div>
                 </div>
             </section>
 
@@ -3522,6 +3734,15 @@
     // VARIABLES GLOBALES
     // ===============================================
     let currentDate = new Date();
+    let pagination_cotizaciones = null;
+    let pagination_eventos = null;
+    let pagination_clientes = null;
+    let pagination_articulos = null;
+
+    let allCotizaciones = [];
+    let allEventos = [];
+    let allClientes = [];
+    let allArticulos = [];
     let eventosDelMes = [];
     let selectedDate = null;
     let clientes = [];
@@ -3664,13 +3885,47 @@
             
             if (data.success) {
                 clientes = data.clientes;
-                renderClientesTable();
+                allClientes = data.clientes || [];
+                
+                pagination_clientes.init(allClientes, (items) => {
+                    renderClientesPage(items);
+                });
+                
                 populateClienteSelect();
             }
         } catch (error) {
             console.error('Error loading clientes:', error);
             Swal.fire('Error', 'Error cargando clientes', 'error');
         }
+    }
+
+    function renderClientesPage(clientesList) {
+        const tbody = document.getElementById('clientes-table-body');
+        
+        if (clientesList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay clientes en esta página</td></tr>';
+            return;
+        }
+        
+        tbody.classList.add('table-animated');
+        setTimeout(() => tbody.classList.remove('table-animated'), 300);
+
+        tbody.innerHTML = clientesList.map(cliente => `
+            <tr>
+                <td>${cliente.nombre}</td>
+                <td>${cliente.telefono || '-'}</td>
+                <td>${cliente.direccion || '-'}</td>
+                <td>0</td>
+                <td>
+                    <button class="btn btn-primary btn-sm" onclick="editarCliente(${cliente.id_cliente})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="eliminarCliente(${cliente.id_cliente})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
     }
 
     function renderClientesTable(clientesList = clientes) {
@@ -3856,13 +4111,75 @@
             
             if (data.success) {
                 eventos = data.eventos;
-                renderEventosTable();
+                allEventos = data.eventos || [];
+                
+                pagination_eventos.init(allEventos, (items) => {
+                    renderEventosPage(items);
+                });
             }
         } catch (error) {
             console.error('Error loading eventos:', error);
+            const tbody = document.getElementById('eventos-table-body');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Error al cargar eventos</td></tr>';
         }
     }
 
+    function renderEventosPage(eventosList) {
+        const tbody = document.getElementById('eventos-table-body');
+        
+        if (eventosList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay eventos en esta página</td></tr>';
+            return;
+        }
+        
+        tbody.classList.add('table-animated');
+        setTimeout(() => tbody.classList.remove('table-animated'), 300);
+
+        tbody.innerHTML = eventosList.map(evento => {
+            if (!evento.id_evento) {
+                console.warn('⚠️ Evento sin ID:', evento);
+            }
+            
+            const estadoColor = getEstadoBackgroundColor(evento.estado);
+            
+            return `
+                <tr>
+                    <td>${evento.cliente_nombre}</td>
+                    <td>${formatDate(evento.fecha_evento)}</td>
+                    <td>${evento.lugar_evento || '-'}</td>
+                    <td>
+                        <select class="form-control" 
+                                style="padding: 0.5rem; font-size: 0.875rem; background: ${estadoColor}; font-weight: 600; border: 2px solid rgba(0,0,0,0.1); min-width: 150px;" 
+                                onchange="cambiarEstadoEvento(${evento.id_evento}, this.value)">
+                            <option value="reservado" ${evento.estado === 'reservado' ? 'selected' : ''}>Reservado</option>
+                            <option value="pendiente_pago" ${evento.estado === 'pendiente_pago' ? 'selected' : ''}>Pendiente de Pago</option>
+                            <option value="cancelado" ${evento.estado === 'cancelado' ? 'selected' : ''}>Cancelado</option>
+                        </select>
+                    </td>
+                    <td>Q${parseFloat(evento.monto_total || 0).toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-success btn-sm" 
+                                onclick="abrirGestionArticulosEvento(${evento.id_evento})" 
+                                title="Gestionar Artículos"
+                                data-evento-id="${evento.id_evento}">
+                            <i class="fas fa-boxes"></i> Artículos
+                        </button>
+                    </td>
+                    <td>
+                        <button class="btn btn-icon btn-view" onclick="verDetalleEvento(${evento.id_evento})" title="Ver detalles">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-icon btn-edit" onclick="abrirEdicionEvento(${evento.id_evento})"  title="Editar">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="eliminarEvento(${evento.id_evento})" title="Eliminar">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
 
     function renderEventosTable(eventosList = eventos) {
         const tbody = document.getElementById('eventos-table-body');
@@ -4021,7 +4338,6 @@
     function getEstadoBackgroundColor(estado) {
         const colores = {
             'reservado': '#FEF3C7',
-            'confirmado': '#D1FAE5',
             'pendiente_pago': '#DBEAFE',
             'cancelado': '#FEE2E2'
         };
@@ -4487,11 +4803,43 @@
             
             if (data.success) {
                 articulos = data.articulos;
-                renderArticulosTable();
+                allArticulos = data.articulos || [];
+                
+                pagination_articulos.init(allArticulos, (items) => {
+                    renderArticulosPage(items);
+                });
             }
         } catch (error) {
             console.error('Error loading articulos:', error);
         }
+    }
+
+    function renderArticulosPage(articulosActuales) {
+        const tbody = document.getElementById('articulos-table-body');
+        
+        if (articulosActuales.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay artículos en esta página</td></tr>';
+            return;
+        }
+        
+        tbody.classList.add('table-animated');
+        setTimeout(() => tbody.classList.remove('table-animated'), 300);
+
+        tbody.innerHTML = articulosActuales.map(articulo => `
+            <tr>
+                <td>${articulo.codigo}</td>
+                <td>${articulo.nombre_articulo}</td>
+                <td>${articulo.categoria_nombre}</td>
+                <td>${articulo.cantidad_total}</td>
+                <td>${articulo.cantidad_disponible}</td>
+                <td>Q${parseFloat(articulo.precio_unitario).toFixed(2)}</td>
+                <td>
+                    <button class="btn btn-primary btn-sm" onclick="editarArticulo(${articulo.id_articulo})" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
     }
 
 
@@ -4754,20 +5102,68 @@
 
     let cotizacionesData = [];
 
-    async function loadCotizaciones() {
-        try {
-            const response = await fetch('/api/cotizaciones');
-            const data = await response.json();
+async function loadCotizaciones() {
+    try {
+        const response = await fetch('/api/cotizaciones');
+        const data = await response.json();
+        
+        if (data.success) {
+            cotizacionesData = data.cotizaciones;
+            allCotizaciones = data.cotizaciones || [];
             
-            if (data.success) {
-                // Guardar los datos completos para uso posterior
-                cotizacionesData = data.cotizaciones;
-                renderCotizacionesTable(data.cotizaciones);
-            }
-        } catch (error) {
-            console.error('Error loading cotizaciones:', error);
+            pagination_cotizaciones.init(allCotizaciones, (items) => {
+                renderCotizacionesPage(items);
+            });
         }
+    } catch (error) {
+        console.error('Error loading cotizaciones:', error);
+        const tbody = document.getElementById('cotizaciones-table-body');
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Error al cargar cotizaciones</td></tr>';
     }
+}
+
+function renderCotizacionesPage(cotizaciones) {
+    const tbody = document.getElementById('cotizaciones-table-body');
+    
+    if (cotizaciones.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No hay cotizaciones en esta página</td></tr>';
+        return;
+    }
+    
+    tbody.classList.add('table-animated');
+    setTimeout(() => tbody.classList.remove('table-animated'), 300);
+    
+    tbody.innerHTML = cotizaciones.map(cotizacion => `
+        <tr>
+            <td><strong>${cotizacion.numero_cotizacion}</strong></td>
+            <td>${cotizacion.cliente_nombre || '<em>Sin cliente definido</em>'}</td>
+            <td>${formatDate(cotizacion.fecha_evento)}</td>
+            <td>Q${parseFloat(cotizacion.monto_total || 0).toFixed(2)}</td>
+            <td><span class="status-badge status-${cotizacion.estado}">${cotizacion.estado}</span></td>
+            <td>
+                <button class="btn btn-icon btn-view" onclick="verDetalleCotizacion(${cotizacion.id_cotizacion})" title="Ver">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn btn-success btn-sm" onclick="descargarCotizacionPDF(${cotizacion.id_cotizacion})" title="Descargar PDF">
+                    <i class="fas fa-download"></i>
+                </button>
+                ${cotizacion.estado === 'enviada' || cotizacion.estado === 'borrador' ? `
+                    <button class="btn btn-icon btn-edit" onclick="abrirEdicionCotizacion(${cotizacion.id_cotizacion})" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="aprobarCotizacion(${cotizacion.id_cotizacion})" title="Aprobar">
+                        <i class="fas fa-check"></i>
+                    </button>
+                ` : ''}
+                ${cotizacion.estado === 'borrador' || cotizacion.estado === 'rechazada' ? `
+                    <button class="btn btn-danger btn-sm" onclick="eliminarCotizacion(${cotizacion.id_cotizacion})" title="Eliminar">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                ` : ''}
+            </td>
+        </tr>
+    `).join('');
+}
 
     function renderCotizacionesTable(cotizaciones) {
         const tbody = document.getElementById('cotizaciones-table-body');
@@ -8687,6 +9083,180 @@ function renderViewCotizacionCart() {
     document.getElementById('view-cot-cart-total').textContent = total.toFixed(2);
 }
 
+// ──────────────────────────────────────────────────────────────────
+// CLASE PAGINACIÓN UNIVERSAL
+// ────────────────────────────────────────────────────────────────── 
+
+class Pagination {
+    constructor(containerId, itemsPerPageDefault = 10) {
+        this.containerId = containerId;
+        this.currentPage = 1;
+        this.itemsPerPage = itemsPerPageDefault;
+        this.totalItems = 0;
+        this.allItems = [];
+        this.onPageChange = null;
+    }
+
+    init(items, onPageChangeCallback) {
+        this.allItems = items;
+        this.totalItems = items.length;
+        this.onPageChange = onPageChangeCallback;
+        this.currentPage = 1;
+        this.render();
+        this.updateDisplay();
+    }
+
+    getTotalPages() {
+        return Math.ceil(this.totalItems / this.itemsPerPage);
+    }
+
+    getCurrentPageItems() {
+        const start = (this.currentPage - 1) * this.itemsPerPage;
+        const end = start + this.itemsPerPage;
+        return this.allItems.slice(start, end);
+    }
+
+    goToPage(pageNumber) {
+        const totalPages = this.getTotalPages();
+        if (pageNumber < 1 || pageNumber > totalPages) return;
+        
+        this.currentPage = pageNumber;
+        this.updateDisplay();
+        this.render();
+    }
+
+    changeItemsPerPage(newItemsPerPage) {
+        this.itemsPerPage = parseInt(newItemsPerPage);
+        this.currentPage = 1;
+        this.updateDisplay();
+        this.render();
+    }
+
+    updateDisplay() {
+        if (this.onPageChange) {
+            const currentItems = this.getCurrentPageItems();
+            this.onPageChange(currentItems);
+        }
+    }
+
+    render() {
+        const container = document.getElementById(this.containerId);
+        if (!container) return;
+
+        const totalPages = this.getTotalPages();
+        
+        if (this.totalItems === 0 || totalPages <= 1) {
+            container.style.display = 'none';
+            return;
+        }
+        
+        container.style.display = 'flex';
+
+        const start = (this.currentPage - 1) * this.itemsPerPage + 1;
+        const end = Math.min(this.currentPage * this.itemsPerPage, this.totalItems);
+
+        let html = `
+            <div class="pagination-info">
+                <i class="fas fa-info-circle"></i>
+                <span>Mostrando ${start} - ${end} de ${this.totalItems}</span>
+            </div>
+            
+            <div class="pagination-buttons">
+                <button class="pagination-btn" ${this.currentPage === 1 ? 'disabled' : ''} 
+                        onclick="pagination_${this.containerId.replace('pagination-', '')}.goToPage(${this.currentPage - 1})">
+                    <span><i class="fas fa-chevron-left"></i></span>
+                </button>
+                
+                ${this.generatePageButtons()}
+                
+                <button class="pagination-btn" ${this.currentPage === totalPages ? 'disabled' : ''} 
+                        onclick="pagination_${this.containerId.replace('pagination-', '')}.goToPage(${this.currentPage + 1})">
+                    <span><i class="fas fa-chevron-right"></i></span>
+                </button>
+            </div>
+
+            <div class="items-per-page">
+                <label for="items-select-${this.containerId}">Por página:</label>
+                <select id="items-select-${this.containerId}" 
+                        onchange="pagination_${this.containerId.replace('pagination-', '')}.changeItemsPerPage(this.value)">
+                    <option value="5" ${this.itemsPerPage === 5 ? 'selected' : ''}>5</option>
+                    <option value="10" ${this.itemsPerPage === 10 ? 'selected' : ''}>10</option>
+                    <option value="20" ${this.itemsPerPage === 20 ? 'selected' : ''}>20</option>
+                    <option value="50" ${this.itemsPerPage === 50 ? 'selected' : ''}>50</option>
+                </select>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    generatePageButtons() {
+        const totalPages = this.getTotalPages();
+        let buttons = '';
+        
+        const maxButtons = 7;
+        let startPage = 1;
+        let endPage = totalPages;
+
+        if (totalPages > maxButtons) {
+            const halfMax = Math.floor(maxButtons / 2);
+            
+            if (this.currentPage <= halfMax) {
+                endPage = maxButtons - 1;
+            } else if (this.currentPage >= totalPages - halfMax) {
+                startPage = totalPages - maxButtons + 2;
+            } else {
+                startPage = this.currentPage - halfMax + 1;
+                endPage = this.currentPage + halfMax - 1;
+            }
+        }
+
+        if (startPage > 1) {
+            buttons += `
+                <button class="pagination-btn ${this.currentPage === 1 ? 'active' : ''}" 
+                        onclick="pagination_${this.containerId.replace('pagination-', '')}.goToPage(1)">
+                    <span>1</span>
+                </button>
+            `;
+            if (startPage > 2) {
+                buttons += '<span class="pagination-ellipsis">...</span>';
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            buttons += `
+                <button class="pagination-btn ${this.currentPage === i ? 'active' : ''}" 
+                        onclick="pagination_${this.containerId.replace('pagination-', '')}.goToPage(${i})">
+                    <span>${i}</span>
+                </button>
+            `;
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                buttons += '<span class="pagination-ellipsis">...</span>';
+            }
+            buttons += `
+                <button class="pagination-btn ${this.currentPage === totalPages ? 'active' : ''}" 
+                        onclick="pagination_${this.containerId.replace('pagination-', '')}.goToPage(${totalPages})">
+                    <span>${totalPages}</span>
+                </button>
+            `;
+        }
+
+        return buttons;
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// INICIALIZAR INSTANCIAS DE PAGINACIÓN
+// ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    pagination_cotizaciones = new Pagination('pagination-cotizaciones', 10);
+    pagination_eventos = new Pagination('pagination-eventos', 10);
+    pagination_clientes = new Pagination('pagination-clientes', 10);
+    pagination_articulos = new Pagination('pagination-articulos', 10);
+});
 
     </script>
 </body>
