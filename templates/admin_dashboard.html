@@ -1,0 +1,2188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alquifiestas - Dashboard Administrador</title>
+    <link rel="icon" type="image/svg+xml" href="static/logo-calzada.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="static/alquifiestas.png" alt="Logo Alquifiestas" class="logo-img">
+            </div>
+
+            <div class="user-info">
+                <h3 id="empleado-nombre">Cargando...</h3>
+                <p>Administrador</p>
+            </div>
+
+            <nav class="menu-section">
+                <a href="#" class="menu-link active" data-section="inicio">
+                    <i class="fas fa-home"></i>
+                    Dashboard
+                </a>
+                <a href="#" class="menu-link" data-section="calendario">
+                    <i class="fas fa-calendar-alt"></i>
+                    Calendario
+                </a>
+                <a href="#" class="menu-link" data-section="eventos">
+                    <i class="fas fa-calendar-plus"></i>
+                    Gestión de Eventos
+                </a>
+                <a href="#" class="menu-link" data-section="cotizaciones">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    Cotizaciones
+                </a>
+                <a href="#" class="menu-link" data-section="articulos">
+                    <i class="fas fa-boxes"></i>
+                    Inventario
+                </a>
+                <a href="#" class="menu-link" data-section="clientes">
+                    <i class="fas fa-users"></i>
+                    Gestión de Clientes
+                </a>
+                <a href="#" class="menu-link" data-section="empleados">
+                    <i class="fas fa-users"></i>
+                    Gestión de empleados
+                </a>
+                <a href="#" class="menu-link" data-section="reportes">
+                    <i class="fas fa-chart-line"></i>
+                    Reportes
+                </a>
+                <a href="#" class="menu-link" data-section="perfil">
+                    <i class="fas fa-user"></i>
+                    Mi Perfil
+                </a>
+                <a href="/logout" class="menu-link">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Cerrar Sesión
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard de Inicio -->
+
+                <!-- Dashboard Administrador Profesional -->
+                <section id="inicio" class="section active">
+                    <!-- Estadísticas Principales -->
+                    <div class="stats-grid">
+                        <div class="stat-card stat-primary">
+                            <div class="stat-icon">
+                                <i class="fas fa-calendar-check"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="stat-eventos-mes">0</h3>
+                                <p>Eventos Este Mes</p>
+                                <span class="stat-trend positive">
+                                    <i class="fas fa-arrow-up"></i> +12%
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card stat-success">
+                            <div class="stat-icon">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="stat-ingresos-mes">Q0.00</h3>
+                                <p>Ingresos del Mes</p>
+                                <span class="stat-trend positive">
+                                    <i class="fas fa-arrow-up"></i> +8%
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card stat-warning">
+                            <div class="stat-icon">
+                                <i class="fas fa-file-invoice"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="stat-cotizaciones">0</h3>
+                                <p>Cotizaciones Pendientes</p>
+                                <span class="stat-trend neutral">
+                                    <i class="fas fa-minus"></i> 0%
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card stat-info">
+                            <div class="stat-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="stat-clientes">0</h3>
+                                <p>Clientes Activos</p>
+                                <span class="stat-trend positive">
+                                    <i class="fas fa-arrow-up"></i> +5%
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-row">
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h3><i class="fas fa-chart-line"></i> Ingresos Mensuales</h3>
+                                    <select id="ingresos-year" class="chart-filter">
+                                        <option value="2025">2025</option>
+                                        <option value="2024">2024</option>
+                                    </select>
+                                </div>
+                                <div style="height: 250px;"> <canvas id="ingresosChart"></canvas>
+                                </div>
+                            </div>
+
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h3><i class="fas fa-chart-pie"></i> Eventos por Tipo</h3>
+                                    <select id="eventos-period" class="chart-filter">
+                                        <option value="mes">Este Mes</option>
+                                        <option value="trimestre">Último Trimestre</option>
+                                        <option value="año">Este Año</option>
+                                    </select>
+                                </div>
+                                <canvas id="eventosTipoChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="charts-row">
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h3><i class="fas fa-tasks"></i> Estado de Eventos</h3>
+                                </div>
+                                <canvas id="estadosEventosChart"></canvas>
+                            </div>
+
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h3><i class="fas fa-box"></i> Artículos Más Rentados</h3>
+                                </div>
+                                <canvas id="topArticulosChart"></canvas>
+                            </div>
+                        </div>
+                    </section>
+
+            <!-- Calendario -->
+            <section id="calendario" class="section">
+                <div class="header">
+                    <h1>Calendario de Eventos</h1>
+                    <button class="btn-primary" onclick="openModal('eventoModal')">
+                        <i class="fas fa-plus"></i>
+                        Agendar Evento
+                    </button>
+                </div>
+
+                <div class="calendar-header">
+                    <div class="calendar-nav">
+                        <button onclick="cambiarMes(-1)" title="Mes anterior">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <h2 id="mes-actual">Cargando...</h2>
+                        <button onclick="cambiarMes(1)" title="Mes siguiente">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    <button class="btn btn-secondary" onclick="irAHoy()">
+                        <i class="fas fa-calendar-day"></i>
+                        Hoy
+                    </button>
+                </div>
+
+                <div id="calendar-loading" class="calendar-loading" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando eventos...
+                </div>
+
+                <div class="calendar-grid" id="calendar-grid">
+                    <!-- Calendar will be generated by JavaScript -->
+                </div>
+
+                <div class="calendar-legend">
+                    <div class="legend-item">
+                        <div class="legend-color reservado"></div>
+                        <span>Reservado</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(96, 165, 250, 0.2)); border-left-color: #3B82F6;"></div>
+                        <span>Pendiente Pago</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color cancelado"></div>
+                        <span>Cancelado</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sección: Gestión de Eventos -->
+            <section id="eventos" class="section">
+                <div class="header">
+                    <h1>Gestión de Eventos</h1>
+                    <button class="btn-primary" onclick="openModal('eventoModal')">
+                        <i class="fas fa-plus"></i>
+                        Nuevo Evento
+                    </button>
+                </div>
+
+                <div class="search-filters">
+                    <div class="search-box">
+                        <input type="text" class="form-control" placeholder="Buscar eventos..." id="search-eventos">
+                    </div>
+                    <select class="filter-select" id="filter-estado">
+                        <option value="">Todos los estados</option>
+                        <option value="reservado">Reservado</option>
+                        <option value="cancelado">Cancelado</option>
+                        <option value="pendiente_pago">Pendiente de Pagar</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Fecha</th>
+                                <th>Lugar</th>
+                                <th>Estado</th>
+                                <th>Monto</th>
+                                <th>Artículos</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="eventos-table-body">
+                            <!-- Events will be loaded here -->
+                        </tbody>
+                    </table>
+
+                </div>
+                <div id="pagination-eventos" class="pagination-container"></div>
+            </section>
+
+            <!-- Cotizaciones -->
+            <section id="cotizaciones" class="section">
+                <div class="header">
+                    <h1>Cotizaciones</h1>
+                    <button class="btn-primary" onclick="openModal('cotizacionModal')">
+                        <i class="fas fa-plus"></i>
+                        Nueva Cotización
+                    </button>
+                </div>
+
+                <div class="search-filters">
+                    <div class="search-box">
+                        <input type="text" class="form-control" placeholder="Buscar cotizaciones..." id="search-cotizaciones">
+                    </div>
+                    <select class="filter-select" id="filter-estado-cotizacion">
+                        <option value="">Todos los estados</option>
+                        <option value="borrador">Borrador</option>
+                        <option value="enviada">Enviada</option>
+                        <option value="aprobada">Aprobada</option>
+                        <option value="rechazada">Rechazada</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Número</th>
+                                <th>Cliente</th>
+                                <th>Fecha Evento</th>
+                                <th>Monto</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cotizaciones-table-body">
+                            <!-- Cotizaciones will be loaded here -->
+                        </tbody>
+                    </table>
+                     <div id="pagination-cotizaciones" class="pagination-container"></div>
+                </div>
+            </section>
+
+            <!-- Artículos -->
+            <section id="articulos" class="section">
+                <div class="header">
+                    <h1>Gestión de Artículos</h1>
+                    <button class="btn-primary" onclick="openModal('articuloModal')">
+                        <i class="fas fa-plus"></i>
+                        Nuevo Artículo
+                    </button>
+                </div>
+
+                <div class="search-filters">
+                    <div class="search-box">
+                        <input type="text" class="form-control" placeholder="Buscar artículos..." id="search-articulos">
+                    </div>
+                    <select class="filter-select" id="filter-categoria">
+                        <option value="">Todas las categorías</option>
+                        <option value="1">Accesorios de Servicio</option>
+                        <option value="2">Cristalería y Vajilla</option>
+                        <option value="3">Decoración</option>
+                        <option value="4">Iluminación LED</option>
+                        <option value="5">Estructuras</option>
+                        <option value="6">Mantelería</option>
+                        <option value="7">Mobiliario</option>
+                        <option value="8">Otros Accesorios</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombre</th>
+                                <th>Categoría</th>
+                                <th>Stock Total</th>
+                                <th>Disponible</th>
+                                <th>Precio</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="articulos-table-body">
+                            <!-- Articles will be loaded here -->
+                        </tbody>
+                    </table>
+                               <div id="pagination-articulos" class="pagination-container"></div>
+                </div>
+            </section>
+
+            <!-- Gestión de Clientes -->
+            <section id="clientes" class="section">
+                <div class="header">
+                    <h1>Gestión de Clientes</h1>
+                    <button class="btn-primary" onclick="openModal('clienteModal')">
+                        <i class="fas fa-plus"></i>
+                        Nuevo Cliente
+                    </button>
+                </div>
+
+                <div class="search-filters">
+                    <div class="search-box">
+                        <input type="text" class="form-control" placeholder="Buscar clientes..." id="search-clientes">
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Teléfono</th>
+                                <th>Dirección</th>
+                                <th>Eventos</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientes-table-body">
+                            <!-- Clients will be loaded here -->
+                        </tbody>
+                    </table>
+                     <div id="pagination-clientes" class="pagination-container"></div>
+                </div>
+            </section>
+
+
+            <!-- Gestión de Empleados -->
+            <section id="empleados" class="section">
+                <div class="header">
+                    <h1>Gestión de Empleados</h1>
+                    <button class="btn-primary" onclick="openModal('empleadoModal')">
+                        <i class="fas fa-plus"></i>
+                        Nuevo Empleado
+                    </button>
+                </div>
+
+                <div class="search-filters">
+                    <div class="search-box">
+                        <input type="text" class="form-control" placeholder="Buscar empleados..." id="search-empleados">
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Cargo</th>
+                                <th>Teléfono</th>
+                                <th>Email</th>
+                                <th>Fecha Ingreso</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="empleados-table-body">
+                            <!-- Empleados se cargarán aquí -->
+                        </tbody>
+                    </table>
+                    <div id="pagination-empleados" class="pagination-container"></div>
+                </div>
+            </section>
+
+            <!-- Reportes -->
+            <section id="reportes" class="section">
+                <div class="header">
+                    <h1>Centro de Reportes</h1>
+                </div>
+
+                <!-- Estadísticas rápidas de reportes -->
+                <div class="stats-grid" style="margin-bottom: 2rem;">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-eventos-mes">0</div>
+                        <div class="stat-label">Eventos Este Mes</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="valor-inventario">Q0.00</div>
+                        <div class="stat-label">Valor Total Inventario</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="reportes-problemas-mes">0</div>
+                        <div class="stat-label">Problemas Este Mes</div>
+                    </div>
+                </div>
+
+                <div class="reportes-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 2rem;">
+                    <!-- Reporte de Eventos -->
+                    <div class="reporte-card">
+                        <div class="reporte-icon" style="background: linear-gradient(135deg, #3B82F6, #60A5FA);">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <h3>Reporte de Eventos</h3>
+                        <p class="reporte-description">Genera reportes detallados de eventos por período, estado y cliente.</p>
+                        
+                        <div class="reporte-features">
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Filtrado por fechas</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Filtrado por estado</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Análisis financiero</span>
+                            </div>
+                        </div>
+
+                        <button class="btn-reporte" onclick="abrirConfiguracionReporte('eventos')" 
+                                style="background: linear-gradient(135deg, #3B82F6, #60A5FA);">
+                            <i class="fas fa-cog"></i> Configurar Reporte
+                        </button>
+                    </div>
+
+                    <!-- Reporte de Inventario -->
+                    <div class="reporte-card">
+                        <div class="reporte-icon" style="background: linear-gradient(135deg, #10B981, #34D399);">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <h3>Reporte de Inventario</h3>
+                        <p class="reporte-description">Estado actual del inventario con valorización y análisis de stock.</p>
+                        
+                        <div class="reporte-features">
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Por categoría</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Alertas de stock bajo</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Valorización total</span>
+                            </div>
+                        </div>
+
+                        <button class="btn-reporte" onclick="abrirConfiguracionReporte('inventario')"
+                                style="background: linear-gradient(135deg, #10B981, #34D399);">
+                            <i class="fas fa-cog"></i> Configurar Reporte
+                        </button>
+                    </div>
+
+                    <!-- Reporte de Problemas -->
+                    <div class="reporte-card">
+                        <div class="reporte-icon" style="background: linear-gradient(135deg, #EF4444, #F87171);">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <h3>Reporte de Problemas</h3>
+                        <p class="reporte-description">Análisis de problemas reportados, costos y responsabilidades.</p>
+                        
+                        <div class="reporte-features">
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Por tipo de problema</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Análisis de costos</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Por responsable</span>
+                            </div>
+                        </div>
+
+                        <button class="btn-reporte" onclick="abrirConfiguracionReporte('problemas')"
+                                style="background: linear-gradient(135deg, #EF4444, #F87171);">
+                            <i class="fas fa-cog"></i> Configurar Reporte
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Gestión de Artículos por Evento -->
+            <section id="gestion-articulos" class="section">
+                <div class="header">
+                    <h1>Gestión de Artículos por Evento</h1>
+                </div>
+
+                <div class="search-filters">
+                    <div class="search-box">
+                        <input type="text" class="form-control" placeholder="Buscar eventos..." id="search-gestion-eventos">
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Número Evento</th>
+                                <th>Cliente</th>
+                                <th>Fecha</th>
+                                <th>Estado Evento</th>
+                                <th>Total Artículos</th>
+                                <th>Progreso</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gestion-eventos-table-body">
+                            <!-- Eventos will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Mi Perfil -->
+            <section id="perfil" class="section">
+                <div class="header">
+                    <h1>Mi Perfil</h1>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-user"></i>Información Personal</h3>
+                    <form id="perfil-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Nombre Completo</label>
+                                <input type="text" class="form-control" id="perfil-nombre" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" class="form-control" id="perfil-email" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Teléfono</label>
+                                <input type="text" class="form-control" id="perfil-telefono">
+                            </div>
+                            <div class="form-group">
+                                <label>Cargo</label>
+                                <input type="text" class="form-control" id="perfil-cargo" readonly>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Dirección</label>
+                            <textarea class="form-control" id="perfil-direccion" rows="3"></textarea>
+                        </div>
+                        <button type="button" class="btn-primary" onclick="actualizarPerfil()">
+                            <i class="fas fa-save"></i>
+                            Actualizar Perfil
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal Gestión de Artículos del Evento -->
+    <div id="gestionArticulosEventoModal" class="modal">
+        <div class="modal-content" style="max-width: 1200px;">
+            <div class="modal-header">
+                <h2>inventario - <span id="gestion-evento-numero"></span></h2>
+                <span class="close" onclick="closeModal('gestionArticulosEventoModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="evento-info" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <div class="form-grid" style="grid-template-columns: repeat(3, 1fr);">
+                        <div>
+                            <strong>Cliente:</strong>
+                            <p id="gestion-cliente-nombre">-</p>
+                        </div>
+                        <div>
+                            <strong>Fecha Evento:</strong>
+                            <p id="gestion-fecha-evento">-</p>
+                        </div>
+                        <div>
+                            <strong>Estado:</strong>
+                            <p id="gestion-estado-evento">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Artículo</th>
+                                <th>Cantidad</th>
+                                <th>Stock Actual</th>
+                                <th>Problemas con el Artículo</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gestion-articulos-detalle-body">
+                            <!-- Articles details will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- CONTROLES GLOBALES -->
+                <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem; border: 2px solid #e5e7eb;">
+                    <div class="form-grid" style="grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
+                        <!-- Selector de Estado Global -->
+                        <div>
+                            <label style="font-weight: 600; color: #1f2937; margin-bottom: 0.5rem; display: block;">
+                                Los artículos se encuentran
+                            </label>
+                            <select id="estado-global-articulos" class="form-control" style="padding: 0.75rem; font-size: 1rem; font-weight: 500;">
+                                <option value="">Seleccionar estado...</option>
+                                <option value="reservado">Reservado</option>
+                                <option value="entregado">Entregado</option>
+                                <option value="recogido">Recogido</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="actualizarEstadoGlobal()" style="margin-top: 1rem; width: 100%;">
+                                <i class="fas fa-save"></i> Aplicar Estado a Todos
+                            </button>
+                        </div>
+
+                        <!-- Registro de Fechas y Horas -->
+                        <div>
+                            <label style="font-weight: 600; color: #1f2937; margin-bottom: 0.5rem; display: block;">
+                                Hora y Fecha de Actualización de los Estados
+                            </label>
+                            <div id="registro-estados" style="background: white; padding: 1rem; border-radius: 6px; border: 1px solid #d1d5db; min-height: 100px;">
+                                <div id="estado-reservado-registro" style="margin-bottom: 0.5rem; color: #6b7280;">
+                                    <strong style="color: #f59e0b;">Reservado:</strong> <span>Sin registro</span>
+                                </div>
+                                <div id="estado-entregado-registro" style="margin-bottom: 0.5rem; color: #6b7280;">
+                                    <strong style="color: #2563eb;">Entregado:</strong> <span>Sin registro</span>
+                                </div>
+                                <div id="estado-recogido-registro" style="color: #6b7280;">
+                                    <strong style="color: #10b981;">Recogido:</strong> <span>Sin registro</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Botón de Reportar Problemas (visible solo si hay artículos seleccionados) -->
+            <div id="reportar-problemas-container" style="display: none; padding: 1.5rem; background: #FEF2F2; border-top: 2px solid #FCA5A5; margin: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <i class="fas fa-exclamation-triangle" style="color: #DC2626; font-size: 1.5rem;"></i>
+                        <div>
+                            <strong style="color: #991B1B; font-size: 1.1rem;">
+                                <span id="count-seleccionados">0</span> Artículo(s) Seleccionado(s)
+                            </strong>
+                            <p style="margin: 0; color: #7C2D12; font-size: 0.9rem;">Haz clic en "Reportar Problemas" para continuar</p>
+                        </div>
+                    </div>
+                    <button 
+                        type="button" 
+                        class="btn btn-danger" 
+                        onclick="abrirReportarProblemasMultiples()"
+                        style="background: linear-gradient(135deg, #EF4444, #DC2626); padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.75rem;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        Reportar Problemas
+                    </button>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('gestionArticulosEventoModal')">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE PROBLEMAS -->
+    <div id="problemaArticuloModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Registrar Problema con Artículo</h2>
+                <span class="close" onclick="closeModal('problemaArticuloModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="problema-id-detalle">
+                <input type="hidden" id="problema-id-articulo">
+                
+                <div class="form-group">
+                    <label>Artículo:</label>
+                    <p id="problema-nombre-articulo" style="font-weight: 600; color: #1f2937;"></p>
+                </div>
+
+                <div class="form-group">
+                    <label for="problema-tipo">Tipo de Problema *</label>
+                    <select id="problema-tipo" class="form-control" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="roto">Roto</option>
+                        <option value="perdido">Perdido</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="problema-descripcion">Descripción del Problema *</label>
+                    <textarea id="problema-descripcion" class="form-control" rows="4" 
+                        placeholder="Describe detalladamente el problema encontrado..." required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="problema-cantidad-afectada">Cantidad Afectada</label>
+                    <input type="number" id="problema-cantidad-afectada" class="form-control" min="1" value="1">
+                </div>
+
+                <div class="form-group">
+                    <label for="problema-costo-estimado">Costo de Reparación/Reposición (Q)</label>
+                    <input type="number" id="problema-costo-estimado" class="form-control" step="0.01" min="0" placeholder="0.00">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('problemaArticuloModal')">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="guardarProblemaArticulo()">
+                    <i class="fas fa-exclamation-triangle"></i> Registrar Problema
+                </button>
+            </div>
+        </div>
+    </div>
+     
+    <!-- Modal Nuevo Evento -->
+    <div id="eventoModal" class="modal">
+        <div class="modal-content" style="max-width: 1200px; width: 95%;">
+            <div class="modal-header">
+            <input type="hidden" id="evento-modo" value="agregar">
+            <input type="hidden" id="evento-id-actual" value="">
+                <h2>Nuevo Evento</h2>
+                <span class="close" onclick="closeModal('eventoModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="evento-form-container">
+                    <!-- Sección 1: Datos generales -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                        <form id="evento-form">
+                            <!-- Toggle para cliente nuevo o existente -->
+                            <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                                <div style="display: flex; gap: 2rem; align-items: center;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                        <input type="radio" name="cliente-tipo" value="existente" checked onchange="toggleClienteForm('existente')">
+                                        <span>Seleccionar cliente existente</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                        <input type="radio" name="cliente-tipo" value="nuevo" onchange="toggleClienteForm('nuevo')">
+                                        <span>Crear nuevo cliente</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Cliente existente -->
+                            <div id="cliente-existente-section">
+                                <div class="form-group">
+                                    <label>Cliente <span class="required">*</span></label>
+                                    <select class="form-control" id="evento-cliente">
+                                        <option value="">Seleccionar cliente...</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Nuevo cliente -->
+                            <div id="cliente-nuevo-section" class="hidden">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Nombre del Cliente <span class="required">*</span></label>
+                                        <input type="text" class="form-control" id="nuevo-cliente-nombre" placeholder="Nombre completo">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Teléfono</label>
+                                        <input type="text" class="form-control" id="nuevo-cliente-telefono" placeholder="Ej: 1234-5678">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Dirección</label>
+                                    <textarea class="form-control" id="nuevo-cliente-direccion" rows="2" placeholder="Dirección del cliente"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Notas sobre el cliente</label>
+                                    <textarea class="form-control" id="nuevo-cliente-notas" rows="2" placeholder="Información adicional"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Resto del formulario de evento -->
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Fecha del Evento <span class="required">*</span></label>
+                                    <input type="date" class="form-control" id="evento-fecha" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Hora Inicio</label>
+                                    <input type="time" class="form-control" id="evento-hora-inicio">
+                                </div>
+                                <div class="form-group">
+                                    <label>Hora Fin</label>
+                                    <input type="time" class="form-control" id="evento-hora-fin">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Lugar del Evento</label>
+                                <input type="text" class="form-control" id="evento-lugar" placeholder="Dirección del evento">
+                            </div>
+                            <div class="form-group">
+                                <label>Número de Invitados</label>
+                                <input type="number" class="form-control" id="evento-invitados" min="1" placeholder="Ej: 80">
+                            </div>
+                            <div class="form-group">
+                                <label>Notas</label>
+                                <textarea class="form-control" id="evento-notas" rows="3" placeholder="Notas adicionales..."></textarea>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Sección 2: Artículos y Servicios -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
+                        
+                        <!-- Checkboxes para mostrar secciones -->
+                        <div class="section-toggles">
+                            <div class="toggle-item">
+                                <input type="checkbox" id="toggleArticulos" onchange="toggleEventoSection('articulos-section')">
+                                <label for="toggleArticulos">Incluir Artículos</label>
+                            </div>
+                            <div class="toggle-item">
+                                <input type="checkbox" id="toggleServicios" onchange="toggleEventoSection('servicios-section')">
+                                <label for="toggleServicios">Incluir Servicios</label>
+                            </div>
+                        </div>
+
+                        <!-- Sección Artículos -->
+                        <div id="articulos-section" class="selection-section hidden">
+                            <h4>Seleccionar Artículos</h4>
+                            <div class="search-bar">
+                                <input type="text" class="form-control" id="search-articulos-evento" placeholder="Buscar artículos...">
+                            </div>
+                            <div class="items-grid" id="articulos-grid">
+                                <!-- Artículos se cargarán aquí -->
+                            </div>
+                        </div>
+
+                        <!-- Sección Servicios -->
+                        <div id="servicios-section" class="selection-section hidden">
+                            <h4>Seleccionar Servicios</h4>
+                            <div class="items-grid" id="servicios-grid">
+                                <!-- Servicios se cargarán aquí -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección 3: Carrito/Resumen -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-shopping-cart"></i> Resumen del Evento</h3>
+                        <div class="cart-container">
+                            <table class="cart-table" id="evento-cart">
+                                <thead>
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th>Precio Unitario</th>
+                                        <th>Cantidad</th>
+                                        <th>Subtotal</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cart-body">
+                                    <tr class="empty-cart">
+                                        <td colspan="5" class="text-center text-muted">No hay elementos en el carrito</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div class="cart-total">
+                                <h4>Total: Q<span id="cart-total">0.00</span></h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('eventoModal')">Cancelar</button>
+                        <button type="button" class="btn btn-primary" onclick="guardarEventoCompleto()">
+                            <i class="fas fa-save"></i>
+                            Guardar Evento
+            </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal Nuevo Cliente -->
+    <div id="clienteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nuevo Cliente</h2>
+                <span class="close" onclick="closeModal('clienteModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="cliente-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Nombre Completo</label>
+                            <input type="text" class="form-control" id="cliente-nombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Teléfono</label>
+                            <input type="text" class="form-control" id="cliente-telefono">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Dirección</label>
+                        <textarea class="form-control" id="cliente-direccion" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Notas</label>
+                        <textarea class="form-control" id="cliente-notas" rows="3" placeholder="Notas adicionales sobre el cliente..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('clienteModal')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarCliente()">
+                    <i class="fas fa-save"></i>
+                    Guardar Cliente
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Cliente -->
+    <div id="editarClienteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Editar Cliente</h2>
+                <span class="close" onclick="closeModal('editarClienteModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editar-cliente-form">
+                    <input type="hidden" id="edit-cliente-id">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Nombre Completo</label>
+                            <input type="text" class="form-control" id="edit-cliente-nombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Teléfono</label>
+                            <input type="text" class="form-control" id="edit-cliente-telefono">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Dirección</label>
+                        <textarea class="form-control" id="edit-cliente-direccion" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Notas</label>
+                        <textarea class="form-control" id="edit-cliente-notas" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editarClienteModal')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="actualizarCliente()">
+                    <i class="fas fa-save"></i>
+                    Actualizar Cliente
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nueva Cotización Completa -->
+    <div id="cotizacionModal" class="modal">
+        <div class="modal-content" style="max-width: 1200px; width: 95%;">
+            <div class="modal-header">
+                <h2>Nueva Cotización</h2>
+                <span class="close" onclick="closeModal('cotizacionModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="evento-form-container">
+                    <!-- Sección 1: Datos generales -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                        <form id="cotizacion-form-completa">
+                            <!-- Toggle para cliente nuevo o existente -->
+                            <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                                <div style="display: flex; gap: 2rem; align-items: center;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                        <input type="radio" name="cliente-tipo-cot" value="existente" checked onchange="toggleClienteFormCot('existente')">
+                                        <span>Seleccionar cliente existente</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                        <input type="radio" name="cliente-tipo-cot" value="nuevo" onchange="toggleClienteFormCot('nuevo')">
+                                        <span>Crear nuevo cliente</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Cliente existente -->
+                            <div id="cliente-existente-section-cot">
+                                <div class="form-group">
+                                    <label>Cliente <span class="required">*</span></label>
+                                    <select class="form-control" id="cotizacion-cliente">
+                                        <option value="">Seleccionar cliente...</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Nuevo cliente -->
+                            <div id="cliente-nuevo-section-cot" class="hidden">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Nombre del Cliente <span class="required">*</span></label>
+                                        <input type="text" class="form-control" id="nuevo-cliente-nombre-cot" placeholder="Nombre completo">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Teléfono</label>
+                                        <input type="text" class="form-control" id="nuevo-cliente-telefono-cot" placeholder="Ej: 1234-5678">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Dirección</label>
+                                    <textarea class="form-control" id="nuevo-cliente-direccion-cot" rows="2" placeholder="Dirección del cliente"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Notas sobre el cliente</label>
+                                    <textarea class="form-control" id="nuevo-cliente-notas-cot" rows="2" placeholder="Información adicional"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Resto del formulario de cotización -->
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Fecha del Evento</label>
+                                    <input type="date" class="form-control" id="cotizacion-fecha">
+                                </div>
+                                <div class="form-group">
+                                    <label>Hora Inicio</label>
+                                    <input type="time" class="form-control" id="cotizacion-hora-inicio">
+                                </div>
+                                <div class="form-group">
+                                    <label>Hora Fin</label>
+                                    <input type="time" class="form-control" id="cotizacion-hora-fin">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Lugar del Evento</label>
+                                <input type="text" class="form-control" id="cotizacion-lugar" placeholder="Dirección del evento">
+                            </div>
+                            <div class="form-group">
+                                <label>Número de Invitados</label>
+                                <input type="number" class="form-control" id="cotizacion-invitados" min="1" placeholder="Ej: 80">
+                            </div>
+                            <div class="form-group">
+                                <label>Notas / Requerimientos Especiales</label>
+                                <textarea class="form-control" id="cotizacion-notas" rows="3" placeholder="Detalles adicionales..."></textarea>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Sección 2: Artículos y Servicios -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
+                        
+                        <!-- Checkboxes para mostrar secciones -->
+                        <div class="section-toggles">
+                            <div class="toggle-item">
+                                <input type="checkbox" id="toggleArticulosCot" onchange="toggleCotizacionSection('articulos-section-cot')">
+                                <label for="toggleArticulosCot">Incluir Artículos</label>
+                            </div>
+                            <div class="toggle-item">
+                                <input type="checkbox" id="toggleServiciosCot" onchange="toggleCotizacionSection('servicios-section-cot')">
+                                <label for="toggleServiciosCot">Incluir Servicios</label>
+                            </div>
+                        </div>
+
+                        <!-- Sección Artículos -->
+                        <div id="articulos-section-cot" class="selection-section hidden">
+                            <h4>Seleccionar Artículos</h4>
+                            <div class="search-bar">
+                                <input type="text" class="form-control" id="search-articulos-cot" placeholder="Buscar artículos..." oninput="filterArticulosCot()">
+                            </div>
+                            <div class="items-grid" id="articulos-grid-cot">
+                                <!-- Artículos se cargarán aquí -->
+                            </div>
+                        </div>
+
+                        <!-- Sección Servicios -->
+                        <div id="servicios-section-cot" class="selection-section hidden">
+                            <h4>Seleccionar Servicios</h4>
+                            <div class="items-grid" id="servicios-grid-cot">
+                                <!-- Servicios se cargarán aquí -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección 3: Carrito/Resumen -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-shopping-cart"></i> Resumen de la Cotización</h3>
+                        <div class="cart-container">
+                            <table class="cart-table" id="cotizacion-cart">
+                                <thead>
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th>Precio Unitario</th>
+                                        <th>Cantidad</th>
+                                        <th>Subtotal</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cart-body-cot">
+                                    <tr class="empty-cart">
+                                        <td colspan="5" class="text-center text-muted">No hay elementos en la cotización</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div class="cart-total">
+                                <h4>Total: Q<span id="cart-total-cot">0.00</span></h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('cotizacionModal')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarCotizacionCompleta()">
+                    <i class="fas fa-save"></i>
+                    Guardar Cotización
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+<!-- MODALES PARA EDITAR Y VISUALIZAR -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+
+<!-- Modal Editar Evento -->
+<div id="editarEventoModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-header">
+            <h2>Editar Evento</h2>
+            <span class="close" onclick="closeModal('editarEventoModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="evento-form-container">
+                <!-- Sección 1: Datos generales -->
+                <div class="form-section">
+                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                    <form id="editar-evento-form">
+                        <!-- Toggle para cliente -->
+                        <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <div style="display: flex; gap: 2rem; align-items: center;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                    <input type="radio" name="edit-cliente-tipo" value="existente" checked onchange="toggleEditClienteForm('existente')">
+                                    <span>Seleccionar cliente existente</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                    <input type="radio" name="edit-cliente-tipo" value="nuevo" onchange="toggleEditClienteForm('nuevo')">
+                                    <span>Crear nuevo cliente</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Cliente existente -->
+                        <div id="edit-cliente-existente-section">
+                            <div class="form-group">
+                                <label>Cliente <span class="required">*</span></label>
+                                <select class="form-control" id="edit-evento-cliente">
+                                    <option value="">Seleccionar cliente...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Nuevo cliente -->
+                        <div id="edit-cliente-nuevo-section" class="hidden">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Nombre del Cliente <span class="required">*</span></label>
+                                    <input type="text" class="form-control" id="edit-nuevo-cliente-nombre" placeholder="Nombre completo">
+                                </div>
+                                <div class="form-group">
+                                    <label>Teléfono</label>
+                                    <input type="text" class="form-control" id="edit-nuevo-cliente-telefono" placeholder="Ej: 1234-5678">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Dirección</label>
+                                <textarea class="form-control" id="edit-nuevo-cliente-direccion" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Notas sobre el cliente</label>
+                                <textarea class="form-control" id="edit-nuevo-cliente-notas" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Datos del evento -->
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Fecha del Evento <span class="required">*</span></label>
+                                <input type="date" class="form-control" id="edit-evento-fecha" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Hora Inicio</label>
+                                <input type="time" class="form-control" id="edit-evento-hora-inicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Hora Fin</label>
+                                <input type="time" class="form-control" id="edit-evento-hora-fin">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Lugar del Evento</label>
+                            <input type="text" class="form-control" id="edit-evento-lugar">
+                        </div>
+                        <div class="form-group">
+                            <label>Número de Invitados</label>
+                            <input type="number" class="form-control" id="edit-evento-invitados" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Notas</label>
+                            <textarea class="form-control" id="edit-evento-notas" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Artículos y Servicios -->
+                <div class="form-section">
+                    <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
+                    
+                    <div class="section-toggles">
+                        <div class="toggle-item">
+                            <input type="checkbox" id="edit-toggleArticulos" onchange="toggleEditEventoSection('edit-articulos-section')">
+                            <label for="edit-toggleArticulos">Incluir Artículos</label>
+                        </div>
+                        <div class="toggle-item">
+                            <input type="checkbox" id="edit-toggleServicios" onchange="toggleEditEventoSection('edit-servicios-section')">
+                            <label for="edit-toggleServicios">Incluir Servicios</label>
+                        </div>
+                    </div>
+
+                    <div id="edit-articulos-section" class="selection-section hidden">
+                        <h4>Seleccionar Artículos</h4>
+                        <div class="search-bar">
+                            <input type="text" class="form-control" id="edit-search-articulos" placeholder="Buscar...">
+                        </div>
+                        <div class="items-grid" id="edit-articulos-grid"></div>
+                    </div>
+
+                    <div id="edit-servicios-section" class="selection-section hidden">
+                        <h4>Seleccionar Servicios</h4>
+                        <div class="items-grid" id="edit-servicios-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Carrito -->
+                <div class="form-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Resumen del Evento</h3>
+                    <div class="cart-container">
+                        <table class="cart-table">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th>Precio Unitario</th>
+                                    <th>Cantidad</th>
+                                    <th>Subtotal</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="edit-cart-body">
+                                <tr class="empty-cart">
+                                    <td colspan="5" class="text-center text-muted">No hay elementos</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="cart-total">
+                            <h4>Total: Q<span id="edit-cart-total">0.00</span></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('editarEventoModal')">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="actualizarEvento()">
+                <i class="fas fa-save"></i> Actualizar Evento
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Visualizar Evento -->
+<div id="visualizarEventoModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-header">
+            <h2>Detalle del Evento</h2>
+            <span class="close" onclick="closeModal('visualizarEventoModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="evento-form-container">
+                <!-- Datos generales -->
+                <div class="form-section">
+                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                    <div class="view-data-grid">
+                        <div class="view-field">
+                            <label>Cliente:</label>
+                            <span id="view-evento-cliente">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Fecha:</label>
+                            <span id="view-evento-fecha">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Hora Inicio:</label>
+                            <span id="view-evento-hora-inicio">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Hora Fin:</label>
+                            <span id="view-evento-hora-fin">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Lugar:</label>
+                            <span id="view-evento-lugar">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Invitados:</label>
+                            <span id="view-evento-invitados">-</span>
+                        </div>
+                        <div class="view-field" style="grid-column: 1 / -1;">
+                            <label>Notas:</label>
+                            <span id="view-evento-notas">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Carrito -->
+                <div class="form-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Artículos y Servicios</h3>
+                    <div class="cart-container">
+                        <table class="cart-table">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th>Precio Unitario</th>
+                                    <th>Cantidad</th>
+                                    <th>Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="view-cart-body">
+                                <tr class="empty-cart">
+                                    <td colspan="4" class="text-center text-muted">No hay elementos</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="cart-total">
+                            <h4>Total: Q<span id="view-cart-total">0.00</span></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('visualizarEventoModal')">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Cotización -->
+<div id="editarCotizacionModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-header">
+            <h2>Editar Cotización</h2>
+            <span class="close" onclick="closeModal('editarCotizacionModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="evento-form-container">
+                <!-- Datos generales -->
+                <div class="form-section">
+                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                    <form id="editar-cotizacion-form">
+                        <!-- Toggle cliente -->
+                        <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <div style="display: flex; gap: 2rem; align-items: center;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                    <input type="radio" name="edit-cot-cliente-tipo" value="existente" checked onchange="toggleEditCotClienteForm('existente')">
+                                    <span>Cliente existente</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                                    <input type="radio" name="edit-cot-cliente-tipo" value="nuevo" onchange="toggleEditCotClienteForm('nuevo')">
+                                    <span>Nuevo cliente</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="edit-cot-cliente-existente-section">
+                            <div class="form-group">
+                                <label>Cliente</label>
+                                <select class="form-control" id="edit-cot-cliente">
+                                    <option value="">Seleccionar...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="edit-cot-cliente-nuevo-section" class="hidden">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Nombre del Cliente</label>
+                                    <input type="text" class="form-control" id="edit-cot-nuevo-cliente-nombre">
+                                </div>
+                                <div class="form-group">
+                                    <label>Teléfono</label>
+                                    <input type="text" class="form-control" id="edit-cot-nuevo-cliente-telefono">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Dirección</label>
+                                <textarea class="form-control" id="edit-cot-nuevo-cliente-direccion" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Notas</label>
+                                <textarea class="form-control" id="edit-cot-nuevo-cliente-notas" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Fecha del Evento</label>
+                                <input type="date" class="form-control" id="edit-cot-fecha">
+                            </div>
+                            <div class="form-group">
+                                <label>Hora Inicio</label>
+                                <input type="time" class="form-control" id="edit-cot-hora-inicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Hora Fin</label>
+                                <input type="time" class="form-control" id="edit-cot-hora-fin">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Lugar</label>
+                            <input type="text" class="form-control" id="edit-cot-lugar">
+                        </div>
+                        <div class="form-group">
+                            <label>Invitados</label>
+                            <input type="number" class="form-control" id="edit-cot-invitados" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Notas</label>
+                            <textarea class="form-control" id="edit-cot-notas" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Artículos y Servicios -->
+                <div class="form-section">
+                    <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
+                    
+                    <div class="section-toggles">
+                        <div class="toggle-item">
+                            <input type="checkbox" id="edit-cot-toggleArticulos" onchange="toggleEditCotSection('edit-cot-articulos-section')">
+                            <label for="edit-cot-toggleArticulos">Incluir Artículos</label>
+                        </div>
+                        <div class="toggle-item">
+                            <input type="checkbox" id="edit-cot-toggleServicios" onchange="toggleEditCotSection('edit-cot-servicios-section')">
+                            <label for="edit-cot-toggleServicios">Incluir Servicios</label>
+                        </div>
+                    </div>
+
+                    <div id="edit-cot-articulos-section" class="selection-section hidden">
+                        <h4>Artículos</h4>
+                        <div class="search-bar">
+                            <input type="text" class="form-control" id="edit-cot-search-articulos" placeholder="Buscar...">
+                        </div>
+                        <div class="items-grid" id="edit-cot-articulos-grid"></div>
+                    </div>
+
+                    <div id="edit-cot-servicios-section" class="selection-section hidden">
+                        <h4>Servicios</h4>
+                        <div class="items-grid" id="edit-cot-servicios-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Carrito -->
+                <div class="form-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Resumen</h3>
+                    <div class="cart-container">
+                        <table class="cart-table">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th>Precio</th>
+                                    <th>Cantidad</th>
+                                    <th>Subtotal</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="edit-cot-cart-body">
+                                <tr class="empty-cart">
+                                    <td colspan="5" class="text-center text-muted">No hay elementos</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="cart-total">
+                            <h4>Total: Q<span id="edit-cot-cart-total">0.00</span></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('editarCotizacionModal')">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="actualizarCotizacion()">
+                <i class="fas fa-save"></i> Actualizar Cotización
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Visualizar Cotización -->
+<div id="visualizarCotizacionModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-header">
+            <h2>Detalle de Cotización</h2>
+            <span class="close" onclick="closeModal('visualizarCotizacionModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="evento-form-container">
+                <!-- Datos -->
+                <div class="form-section">
+                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
+                    <div class="view-data-grid">
+                        <div class="view-field">
+                            <label>Cliente:</label>
+                            <span id="view-cot-cliente">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Fecha:</label>
+                            <span id="view-cot-fecha">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Hora Inicio:</label>
+                            <span id="view-cot-hora-inicio">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Hora Fin:</label>
+                            <span id="view-cot-hora-fin">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Lugar:</label>
+                            <span id="view-cot-lugar">-</span>
+                        </div>
+                        <div class="view-field">
+                            <label>Invitados:</label>
+                            <span id="view-cot-invitados">-</span>
+                        </div>
+                        <div class="view-field" style="grid-column: 1 / -1;">
+                            <label>Notas:</label>
+                            <span id="view-cot-notas">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Carrito -->
+                <div class="form-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Artículos y Servicios</h3>
+                    <div class="cart-container">
+                        <table class="cart-table">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th>Precio</th>
+                                    <th>Cantidad</th>
+                                    <th>Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="view-cot-cart-body">
+                                <tr class="empty-cart">
+                                    <td colspan="4" class="text-center text-muted">No hay elementos</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="cart-total">
+                            <h4>Total: Q<span id="view-cot-cart-total">0.00</span></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('visualizarCotizacionModal')">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+    <!-- Modal Nuevo Artículo -->
+    <div id="articuloModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nuevo Artículo</h2>
+                <span class="close" onclick="closeModal('articuloModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="articulo-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Código</label>
+                            <input type="text" class="form-control" id="articulo-codigo" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Nombre del Artículo</label>
+                            <input type="text" class="form-control" id="articulo-nombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Categoría</label>
+                            <select class="form-control" id="articulo-categoria" required>
+                                <option value="">Seleccionar categoría...</option>
+                                <option value="1">Mobiliario</option>
+                                <option value="2">Cristalería</option>
+                                <option value="3">Decoración</option>
+                                <option value="4">Audio/Video</option>
+                                <option value="5">Estructuras</option>
+                                <option value="6">Cocina</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Precio Unitario</label>
+                            <input type="number" class="form-control" id="articulo-precio" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Cantidad Total</label>
+                            <input type="number" class="form-control" id="articulo-cantidad" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Costo de Reposición</label>
+                            <input type="number" class="form-control" id="articulo-costo" step="0.01" min="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Descripción</label>
+                        <textarea class="form-control" id="articulo-descripcion" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('articuloModal')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarArticulo()">
+                    <i class="fas fa-save"></i>
+                    Guardar Artículo
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal Convertir Cotización a Evento -->
+    <div id="convertirEventoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Convertir a Evento</h2>
+                <span class="close" onclick="closeModal('convertirEventoModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="convertir-evento-form">
+                    <input type="hidden" id="convertir-cotizacion-id">
+                    <div class="form-group">
+                        <label>¿Confirmar conversión de cotización a evento?</label>
+                        <p class="text-muted">Esta acción creará un nuevo evento basado en los datos de la cotización.</p>
+                    </div>
+                    <div id="convertir-evento-preview">
+                        <!-- Preview content will be loaded -->
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('convertirEventoModal')">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="confirmarConversion()">
+                    <i class="fas fa-check"></i>
+                    Convertir a Evento
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+     <!-- Modal Reportar Problemas Múltiples -->
+    <div id="reportarProblemasMultiplesModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2>Reportar Problemas del Evento</h2>
+                <span class="close" onclick="closeReportarProblemasMultiples()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Alerta informativa -->
+                <div style="background: #EFF6FF; border-left: 4px solid #3B82F6; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <div style="display: flex; align-items: start; gap: 0.75rem;">
+                        <i class="fas fa-info-circle" style="color: #3B82F6; font-size: 1.25rem; margin-top: 2px;"></i>
+                        <div>
+                            <strong style="color: #1E40AF;">Artículos con Problemas (<span id="count-articulos-problema">0</span> seleccionados)</strong>
+                            <p style="margin: 0.25rem 0 0 0; color: #1E40AF; font-size: 0.9rem;">Complete la información para cada artículo que presenta problemas</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista de artículos con problemas -->
+                <div id="lista-articulos-problemas" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+
+                <!-- Costo total -->
+                <div style="background: #FEF2F2; border: 2px solid #FCA5A5; padding: 1.25rem; border-radius: 8px; margin-top: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: #991B1B; font-size: 1.1rem;">COSTO TOTAL DE PROBLEMAS:</strong>
+                        <span id="costo-total-problemas" style="color: #991B1B; font-size: 1.5rem; font-weight: 700;">Q0.00</span>
+                    </div>
+                </div>
+
+                <!-- Nota informativa -->
+                <div style="background: #FFFBEB; border-left: 4px solid #F59E0B; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                    <div style="display: flex; align-items: start; gap: 0.75rem;">
+                        <i class="fas fa-lightbulb" style="color: #F59E0B; font-size: 1.1rem; margin-top: 2px;"></i>
+                        <p style="margin: 0; color: #92400E; font-size: 0.9rem;">
+                            <strong>Nota:</strong> Complete el tipo de problema y responsable para cada artículo. Los costos se calculan automáticamente según el precio de alquiler.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeReportarProblemasMultiples()">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="guardarProblemasMultiples()" style="background: linear-gradient(135deg, #EF4444, #DC2626);">
+                    <i class="fas fa-save"></i>
+                    Guardar y Generar PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuración Reporte de Eventos -->
+    <div id="configEventosModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-calendar-alt"></i> Configurar Reporte de Eventos</h2>
+                <span class="close" onclick="closeModal('configEventosModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Período -->
+                <div class="config-reporte-section">
+                    <h4><i class="fas fa-calendar"></i> Seleccionar Período</h4>
+                    
+                    <div class="periodo-rapido">
+                        <button class="periodo-btn" onclick="setPeriodoRapido('hoy', 'eventos')">Hoy</button>
+                        <button class="periodo-btn" onclick="setPeriodoRapido('semana', 'eventos')">Esta Semana</button>
+                        <button class="periodo-btn" onclick="setPeriodoRapido('mes', 'eventos')">Este Mes</button>
+                        <button class="periodo-btn" onclick="setPeriodoRapido('trimestre', 'eventos')">Trimestre</button>
+                        <button class="periodo-btn" onclick="setPeriodoRapido('anio', 'eventos')">Este Año</button>
+                        <button class="periodo-btn active" onclick="setPeriodoRapido('personalizado', 'eventos')">Personalizado</button>
+                    </div>
+
+                    <div class="form-grid" id="fechas-personalizadas-eventos">
+                        <div class="form-group">
+                            <label>Fecha Inicio</label>
+                            <input type="date" class="form-control" id="config-eventos-fecha-inicio">
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha Fin</label>
+                            <input type="date" class="form-control" id="config-eventos-fecha-fin">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="config-reporte-section">
+                    <h4><i class="fas fa-filter"></i> Filtros Adicionales</h4>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Estado del Evento</label>
+                            <select class="form-control" id="config-eventos-estado">
+                                <option value="">Todos los estados</option>
+                                <option value="reservado">Reservado</option>
+                                <option value="pendiente_pago">Pendiente de Pago</option>
+                                <option value="cancelado">Cancelado</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Cliente (Opcional)</label>
+                            <select class="form-control" id="config-eventos-cliente">
+                                <option value="">Todos los clientes</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="config-eventos-detallado">
+                            <span>Incluir desglose detallado de artículos y servicios</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Previsualización -->
+                <div class="config-reporte-section">
+                    <h4><i class="fas fa-eye"></i> Vista Previa</h4>
+                    <div class="preview-stats" id="preview-eventos-stats">
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Total Eventos</div>
+                        </div>
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Ingresos</div>
+                        </div>
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Pagado</div>
+                        </div>
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Pendiente</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('configEventosModal')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="generarReporteEventosConfig()">
+                    <i class="fas fa-file-pdf"></i> Generar PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuración Reporte de Inventario -->
+    <div id="configInventarioModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-boxes"></i> Configurar Reporte de Inventario</h2>
+                <span class="close" onclick="closeModal('configInventarioModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Opciones -->
+                <div class="config-reporte-section">
+                    <h4><i class="fas fa-sliders-h"></i> Opciones del Reporte</h4>
+                    
+                    <div class="form-group">
+                        <label>Categoría</label>
+                        <select class="form-control" id="config-inventario-categoria">
+                            <option value="">Todas las categorías</option>
+                            <option value="1">Mobiliario</option>
+                            <option value="2">Cristalería</option>
+                            <option value="3">Decoración</option>
+                            <option value="4">Audio/Video</option>
+                            <option value="5">Estructuras</option>
+                            <option value="6">Cocina</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="config-inventario-stock-bajo" checked>
+                            <span>Destacar artículos con stock bajo (menos de 10)</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="config-inventario-valorizacion" checked>
+                            <span>Incluir valorización del inventario</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="config-inventario-daniados">
+                            <span>Mostrar artículos dañados</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Previsualización -->
+                <div class="config-reporte-section">
+                    <h4><i class="fas fa-eye"></i> Vista Previa</h4>
+                    <div class="preview-stats" id="preview-inventario-stats">
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Total Artículos</div>
+                        </div>
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Stock Total</div>
+                        </div>
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Disponibles</div>
+                        </div>
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Valor Total</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('configInventarioModal')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="generarReporteInventarioConfig()">
+                    <i class="fas fa-file-pdf"></i> Generar PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuración Reporte de Problemas -->
+    <div id="configProblemasModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-exclamation-triangle"></i> Configurar Reporte de Problemas</h2>
+                <span class="close" onclick="closeModal('configProblemasModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Período -->
+                <div class="config-reporte-section">
+                    <h4><i class="fas fa-calendar"></i> Seleccionar Período</h4>
+                    
+                    <div class="periodo-rapido">
+                        <button class="periodo-btn" onclick="setPeriodoRapido('hoy', 'problemas')">Hoy</button>
+                        <button class="periodo-btn" onclick="setPeriodoRapido('semana', 'problemas')">Esta Semana</button>
+                        <button class="periodo-btn active" onclick="setPeriodoRapido('mes', 'problemas')">Este Mes</button>
+                        <button class="periodo-btn" onclick="setPeriodoRapido('trimestre', 'problemas')">Trimestre</button>
+                        <button class="periodo-btn" onclick="setPeriodoRapido('anio', 'problemas')">Este Año</button>
+                        <button class="periodo-btn" onclick="setPeriodoRapido('personalizado', 'problemas')">Personalizado</button>
+                    </div>
+
+                    <div class="form-grid" id="fechas-personalizadas-problemas" style="display: none;">
+                        <div class="form-group">
+                            <label>Fecha Inicio</label>
+                            <input type="date" class="form-control" id="config-problemas-fecha-inicio">
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha Fin</label>
+                            <input type="date" class="form-control" id="config-problemas-fecha-fin">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="config-reporte-section">
+                    <h4><i class="fas fa-filter"></i> Filtros</h4>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Tipo de Problema</label>
+                            <select class="form-control" id="config-problemas-tipo">
+                                <option value="">Todos los tipos</option>
+                                <option value="roto">Roto</option>
+                                <option value="perdido">Perdido</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Responsable</label>
+                            <select class="form-control" id="config-problemas-responsable">
+                                <option value="">Todos</option>
+                                <option value="Cliente">Cliente</option>
+                                <option value="Empresa">Empresa</option>
+                                <option value="Tercero">Tercero</option>
+                                <option value="Desconocido">Desconocido</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="config-problemas-graficos" checked>
+                            <span>Incluir análisis gráfico de costos</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Previsualización -->
+                <div class="config-reporte-section">
+                    <h4><i class="fas fa-eye"></i> Vista Previa</h4>
+                    <div class="preview-stats" id="preview-problemas-stats">
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Total Problemas</div>
+                        </div>
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Costo Total</div>
+                        </div>
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Rotos</div>
+                        </div>
+                        <div class="preview-stat">
+                            <div class="preview-stat-number">-</div>
+                            <div class="preview-stat-label">Perdidos</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('configProblemasModal')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="generarReporteProblemasConfig()">
+                    <i class="fas fa-file-pdf"></i> Generar PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nuevo Empleado -->
+<div id="empleadoModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><i class="fas fa-user-tie"></i> Nuevo Empleado</h2>
+            <button class="close-modal" onclick="closeModal('empleadoModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="empleado-nombre">Nombre Completo *</label>
+                    <input type="text" id="empleado-nombre" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="empleado-cargo">Cargo</label>
+                    <input type="text" id="empleado-cargo" class="form-control" placeholder="Ej: Mesero, Chef, Coordinador">
+                </div>
+                
+                <div class="form-group">
+                    <label for="empleado-telefono">Teléfono</label>
+                    <input type="tel" id="empleado-telefono" class="form-control">
+                </div>
+                
+                <div class="form-group">
+                    <label for="empleado-email">Email *</label>
+                    <input type="email" id="empleado-email" class="form-control" required>
+                </div>
+                
+                <div class="form-group full-width">
+                    <label for="empleado-direccion">Dirección</label>
+                    <textarea id="empleado-direccion" class="form-control" rows="2"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="empleado-username">Usuario (para login) *</label>
+                    <input type="text" id="empleado-username" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="empleado-password">Contraseña *</label>
+                    <input type="password" id="empleado-password" class="form-control" required>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="closeModal('empleadoModal')">Cancelar</button>
+            <button class="btn-primary" onclick="guardarEmpleado()">Guardar Empleado</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Empleado -->
+<div id="editarEmpleadoModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><i class="fas fa-user-edit"></i> Editar Empleado</h2>
+            <button class="close-modal" onclick="closeModal('editarEmpleadoModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="edit-empleado-id">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="edit-empleado-nombre">Nombre Completo *</label>
+                    <input type="text" id="edit-empleado-nombre" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit-empleado-cargo">Cargo</label>
+                    <input type="text" id="edit-empleado-cargo" class="form-control">
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit-empleado-telefono">Teléfono</label>
+                    <input type="tel" id="edit-empleado-telefono" class="form-control">
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit-empleado-email">Email</label>
+                    <input type="email" id="edit-empleado-email" class="form-control">
+                </div>
+                
+                <div class="form-group full-width">
+                    <label for="edit-empleado-direccion">Dirección</label>
+                    <textarea id="edit-empleado-direccion" class="form-control" rows="2"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit-empleado-username">Usuario</label>
+                    <input type="text" id="edit-empleado-username" class="form-control">
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit-empleado-password">Nueva Contraseña (dejar vacío para no cambiar)</label>
+                    <input type="password" id="edit-empleado-password" class="form-control">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="closeModal('editarEmpleadoModal')">Cancelar</button>
+            <button class="btn-primary" onclick="actualizarEmpleado()">Actualizar Empleado</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Orden de carga importante -->
+<script src="static/js/config.js"></script>
+<script src="static/js/utils.js"></script>
+<script src="static/js/pagination.js"></script>
+<script src="static/js/modal-manager.js"></script>
+<script src="static/js/navigation-admin.js"></script>
+<script src="static/js/clientes-module.js"></script>
+<script src="static/js/articulos-module.js"></script>
+<script src="static/js/inventario-module.js"></script>
+<script src="static/js/grafic-dashboard-admin.js"></script>
+<script src="static/js/eventos-module.js"></script>
+<script src="static/js/cotizaciones-module.js"></script>
+<script src="static/js/empleado-module.js"></script>
+<script src="static/js/calendario-module.js"></script>
+<script src="static/js/perfil-module.js"></script>
+<script src="static/js/reportes-module.js"></script>
+<script src="static/js/main-admin.js"></script>
+</body>
+</html>
