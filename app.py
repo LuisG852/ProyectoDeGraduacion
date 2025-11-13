@@ -1760,7 +1760,7 @@ def generar_reporte_eventos_pdf():
             
             header_title = Paragraph(
                 "<b>ALQUIFIESTAS LA CALZADA</b><br/>"
-                "<font size=10>Teléfono: (502) 4211-6543 | Email: multiservicioslacalzada@gmail.com/font><br/>"
+                "<font size=10>Teléfono: (502) 4211-6543 | Email: multiservicioslacalzada@gmail.com</font><br/>"
                 "<font size=9>Ciudad de Guatemala</font>",
                 ParagraphStyle('HeaderTitle', parent=styles['Normal'], fontSize=14, 
                              textColor=colors.HexColor('#2563EB'), alignment=2, spaceAfter=10)
@@ -5679,6 +5679,653 @@ def actualizar_cotizacion_completa(id_cotizacion):
         return jsonify({'success': False, 'message': str(e)})
 
 
+# ===============================================
+# RUTAS API PARA GESTIÓN DE EMPLEADOS
+# ===============================================
+
+@app.route('/api/empleados', methods=['POST'])
+def create_empleado():
+    """Crear nuevo empleado (solo para admin)"""
+    if 'user' not in session or not session.get('is_admin'):
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        data = request.get_json()
+        nombre = data.get('nombre')
+        cargo = data.get('cargo', '')
+        telefono = data.get('telefono', '')
+        direccion = data.get('direccion', '')
+        email = data.get('email')
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not nombre or not email or not username or not password:
+            return jsonify({
+                'success': False,
+                'message': 'Nombre, email, usuario y contraseña son requeridos'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar si el email o username ya existen
+        cursor.execute(
+            "SELECT id FROM users WHERE email = %s OR username = %s",
+            (email, username)
+        )
+        
+        if cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': 'El email o usuario ya existe'
+            }), 400
+        
+        # Crear usuario (sin hashear la contraseña)
+        cursor.execute("""
+            INSERT INTO users (username, email, password, is_admin, is_active)
+            VALUES (%s, %s, %s, FALSE, TRUE)
+            RETURNING id
+        """, (username, email, password))
+        
+        user_id = cursor.fetchone()[0]
+        
+        # Crear empleado
+        cursor.execute("""
+            INSERT INTO empleados (user_id, nombre, telefono, direccion, cargo)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id_empleado
+        """, (user_id, nombre, telefono, direccion, cargo))
+        
+        empleado_id = cursor.fetchone()[0]
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Empleado creado exitosamente',
+            'empleado_id': empleado_id
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creando empleado: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error creando empleado: {str(e)}'
+        }), 500
+
+
+@app.route('/api/empleados/<int:id_empleado>', methods=['PUT'])
+def update_empleado(id_empleado):
+    """Actualizar un empleado existente (solo para admin)"""
+    if 'user' not in session or not session.get('is_admin'):
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        data = request.get_json()
+        nombre = data.get('nombre')
+        cargo = data.get('cargo', '')
+        telefono = data.get('telefono', '')
+        direccion = data.get('direccion', '')
+        email = data.get('email')
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not nombre:
+            return jsonify({
+                'success': False,
+                'message': 'El nombre es requerido'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el empleado existe y obtener user_id
+        cursor.execute(
+            "SELECT user_id FROM empleados WHERE id_empleado = %s",
+            (id_empleado,)
+        )
+        
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Empleado no encontrado'
+            }), 404
+        
+        user_id = result[0]
+        
+        # Actualizar datos del empleado
+        cursor.execute("""
+            UPDATE empleados 
+            SET nombre = %s, cargo = %s, telefono = %s, direccion = %s
+            WHERE id_empleado = %s
+        """, (nombre, cargo, telefono, direccion, id_empleado))
+        
+        # Actualizar usuario si se proporcionaron datos
+        if email or username:
+            # Verificar que email/username no estén en uso por otro usuario
+            cursor.execute("""
+                SELECT id FROM users 
+                WHERE (email = %s OR username = %s) AND id != %s
+            """, (email, username, user_id))
+            
+            if cursor.fetchone():
+                return jsonify({
+                    'success': False,
+                    'message': 'El email o usuario ya está en uso'
+                }), 400
+            
+            # Actualizar con o sin contraseña (sin hashear)
+            if password:
+                cursor.execute("""
+                    UPDATE users 
+                    SET email = %s, username = %s, password = %s
+                    WHERE id = %s
+                """, (email, username, password, user_id))
+            else:
+                cursor.execute("""
+                    UPDATE users 
+                    SET email = %s, username = %s
+                    WHERE id = %s
+                """, (email, username, user_id))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Empleado actualizado exitosamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error actualizando empleado: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error actualizando empleado: {str(e)}'
+        }), 500
+
+
+@app.route('/api/empleados/<int:id_empleado>', methods=['DELETE'])
+def delete_empleado(id_empleado):
+    """Eliminar un empleado (solo para admin)"""
+    if 'user' not in session or not session.get('is_admin'):
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el empleado existe y obtener user_id
+        cursor.execute(
+            "SELECT user_id FROM empleados WHERE id_empleado = %s",
+            (id_empleado,)
+        )
+        
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Empleado no encontrado'
+            }), 404
+        
+        user_id = result[0]
+        
+        # Eliminar empleado (el CASCADE eliminará el usuario automáticamente)
+        cursor.execute(
+            "DELETE FROM empleados WHERE id_empleado = %s",
+            (id_empleado,)
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Empleado eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error eliminando empleado: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error eliminando empleado: {str(e)}'
+        }), 500
+
+# ===============================================
+# ENDPOINTS PARA DASHBOARD ADMINISTRADOR
+# ===============================================
+
+@app.route('/api/dashboard/stats-admin', methods=['GET'])
+def get_dashboard_stats_admin():
+    """Obtener estadísticas principales del dashboard admin"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Eventos este mes
+        cursor.execute("""
+            SELECT COUNT(*) FROM eventos 
+            WHERE EXTRACT(MONTH FROM fecha_evento) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM fecha_evento) = EXTRACT(YEAR FROM CURRENT_DATE)
+        """)
+        eventos_mes = cursor.fetchone()[0] or 0
+        
+        # Ingresos del mes
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto_pagado), 0) FROM eventos 
+            WHERE EXTRACT(MONTH FROM fecha_evento) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM fecha_evento) = EXTRACT(YEAR FROM CURRENT_DATE)
+        """)
+        ingresos_mes = float(cursor.fetchone()[0] or 0)
+        
+        # Cotizaciones pendientes
+        cursor.execute("""
+            SELECT COUNT(*) FROM cotizaciones 
+            WHERE estado IN ('borrador', 'enviada')
+        """)
+        cotizaciones_pendientes = cursor.fetchone()[0] or 0
+        
+        # Clientes activos
+        cursor.execute("""
+            SELECT COUNT(DISTINCT id_cliente) FROM eventos 
+            WHERE fecha_evento >= CURRENT_DATE - INTERVAL '6 months'
+            AND id_cliente IS NOT NULL
+        """)
+        clientes_activos = cursor.fetchone()[0] or 0
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'eventos_mes': eventos_mes,
+                'ingresos_mes': ingresos_mes,
+                'cotizaciones_pendientes': cotizaciones_pendientes,
+                'clientes_activos': clientes_activos
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo estadísticas admin: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error obteniendo estadísticas: {str(e)}'
+        }), 500
+
+
+@app.route('/api/eventos/proximos-admin', methods=['GET'])
+def get_eventos_proximos_admin():
+    """Obtener eventos próximos para dashboard admin"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                e.id_evento,
+                e.numero_evento,
+                e.fecha_evento,
+                e.hora_inicio,
+                e.lugar_evento,
+                e.numero_invitados,
+                e.estado,
+                e.monto_total,
+                c.nombre as cliente_nombre
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            WHERE e.fecha_evento >= CURRENT_DATE
+            ORDER BY e.fecha_evento, e.hora_inicio
+            LIMIT 10
+        """)
+        
+        columns = [desc[0] for desc in cursor.description]
+        resultados = cursor.fetchall()
+        
+        eventos = []
+        for row in resultados:
+            evento = dict(zip(columns, row))
+            if evento.get('fecha_evento'):
+                evento['fecha_evento'] = str(evento['fecha_evento'])
+            if evento.get('hora_inicio'):
+                evento['hora_inicio'] = str(evento['hora_inicio'])
+            eventos.append(evento)
+        
+        return jsonify({
+            'success': True,
+            'eventos': eventos
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo eventos próximos admin: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error obteniendo eventos: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dashboard/ingresos-mensuales-admin', methods=['GET'])
+def get_ingresos_mensuales_admin():
+    """Obtener ingresos mensuales para gráfica admin"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        year = int(request.args.get('year', 2025))
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                EXTRACT(MONTH FROM fecha_evento)::INTEGER as mes,
+                COALESCE(SUM(monto_pagado), 0) as total
+            FROM eventos
+            WHERE EXTRACT(YEAR FROM fecha_evento) = %s
+            GROUP BY EXTRACT(MONTH FROM fecha_evento)
+            ORDER BY mes
+        """, (year,))
+        
+        resultados = cursor.fetchall()
+        
+        ingresos = [0.0] * 12
+        
+        for mes, total in resultados:
+            if mes and 1 <= int(mes) <= 12:
+                ingresos[int(mes) - 1] = float(total) if total else 0.0
+        
+        return jsonify({
+            'success': True,
+            'ingresos': ingresos
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo ingresos mensuales admin: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error obteniendo ingresos: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dashboard/eventos-por-tipo-admin', methods=['GET'])
+def get_eventos_por_tipo_admin():
+    """Obtener eventos por tipo para gráfica admin"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                COALESCE(s.categoria, 'Sin Categoría') as tipo,
+                COUNT(DISTINCT e.id_evento) as cantidad
+            FROM eventos e
+            LEFT JOIN evento_servicios es ON e.id_evento = es.id_evento
+            LEFT JOIN servicios s ON es.id_servicio = s.id_servicio
+            WHERE e.fecha_evento >= CURRENT_DATE - INTERVAL '3 months'
+            GROUP BY s.categoria
+            ORDER BY cantidad DESC
+            LIMIT 6
+        """)
+        
+        resultados = cursor.fetchall()
+        
+        if not resultados or len(resultados) == 0:
+            return jsonify({
+                'success': True,
+                'labels': ['Sin datos'],
+                'valores': [1]
+            })
+        
+        labels = [row[0] if row[0] else 'Sin Categoría' for row in resultados]
+        valores = [int(row[1]) if row[1] else 0 for row in resultados]
+        
+        return jsonify({
+            'success': True,
+            'labels': labels,
+            'valores': valores
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo eventos por tipo admin: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dashboard/estados-eventos-admin', methods=['GET'])
+def get_estados_eventos_admin():
+    """Obtener estados de eventos para gráfica admin"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                estado,
+                COUNT(*) as cantidad
+            FROM eventos
+            WHERE fecha_evento >= CURRENT_DATE - INTERVAL '1 month'
+            GROUP BY estado
+            ORDER BY cantidad DESC
+        """)
+        
+        resultados = cursor.fetchall()
+        
+        if not resultados or len(resultados) == 0:
+            return jsonify({
+                'success': True,
+                'labels': ['Sin datos'],
+                'valores': [1]
+            })
+        
+        estados_map = {
+            'reservado': 'Reservado',
+            'confirmado': 'Confirmado',
+            'pendiente_pago': 'Pendiente Pago',
+            'cancelado': 'Cancelado'
+        }
+        
+        labels = [estados_map.get(row[0], row[0]) if row[0] else 'Sin Estado' for row in resultados]
+        valores = [int(row[1]) if row[1] else 0 for row in resultados]
+        
+        return jsonify({
+            'success': True,
+            'labels': labels,
+            'valores': valores
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo estados admin: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dashboard/top-articulos-admin', methods=['GET'])
+def get_top_articulos_admin():
+    """Obtener top artículos para gráfica admin"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                a.nombre_articulo,
+                COUNT(ea.id_detalle) as veces_rentado
+            FROM evento_articulos ea
+            JOIN articulos a ON ea.id_articulo = a.id_articulo
+            JOIN eventos e ON ea.id_evento = e.id_evento
+            WHERE e.fecha_evento >= CURRENT_DATE - INTERVAL '3 months'
+            GROUP BY a.id_articulo, a.nombre_articulo
+            ORDER BY veces_rentado DESC
+            LIMIT 5
+        """)
+        
+        resultados = cursor.fetchall()
+        
+        if not resultados or len(resultados) == 0:
+            return jsonify({
+                'success': True,
+                'labels': ['Sin datos'],
+                'valores': [1]
+            })
+        
+        labels = [row[0] if row[0] else 'Sin nombre' for row in resultados]
+        valores = [int(row[1]) if row[1] else 0 for row in resultados]
+        
+        return jsonify({
+            'success': True,
+            'labels': labels,
+            'valores': valores
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo top artículos admin: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dashboard/actividades-recientes-admin', methods=['GET'])
+def get_actividades_recientes_admin():
+    """Obtener actividades recientes para dashboard admin"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        actividades = []
+        
+        # Eventos
+        cursor.execute("""
+            SELECT 
+                e.created_at,
+                c.nombre
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            WHERE e.created_at IS NOT NULL
+            ORDER BY e.created_at DESC
+            LIMIT 3
+        """)
+        
+        eventos = cursor.fetchall()
+        for fecha, nombre_cliente in eventos:
+            actividades.append({
+                'tipo': 'success',
+                'descripcion': f'Nuevo evento creado: {nombre_cliente or "Cliente sin nombre"}',
+                'fecha': fecha.isoformat() if fecha else None
+            })
+        
+        # Pagos
+        cursor.execute("""
+            SELECT 
+                p.fecha_pago,
+                p.monto,
+                p.metodo
+            FROM pagos p
+            WHERE p.fecha_pago IS NOT NULL
+            ORDER BY p.fecha_pago DESC
+            LIMIT 3
+        """)
+        
+        pagos = cursor.fetchall()
+        for fecha, monto, metodo in pagos:
+            actividades.append({
+                'tipo': 'success',
+                'descripcion': f'Pago recibido de Q{float(monto) if monto else 0:.2f} - {metodo or "Sin método"}',
+                'fecha': fecha.isoformat() if fecha else None
+            })
+        
+        actividades.sort(key=lambda x: x['fecha'] if x['fecha'] else '', reverse=True)
+        actividades = actividades[:10]
+        
+        return jsonify({
+            'success': True,
+            'actividades': actividades
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo actividades admin: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dashboard/inventario-bajo-admin', methods=['GET'])
+def get_inventario_bajo_admin():
+    """Obtener inventario bajo para dashboard admin"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                id_articulo,
+                nombre_articulo,
+                cantidad_total,
+                cantidad_disponible,
+                CASE 
+                    WHEN cantidad_total > 0 
+                    THEN ROUND((cantidad_disponible::NUMERIC / cantidad_total::NUMERIC) * 100, 2)
+                    ELSE 0
+                END as porcentaje
+            FROM articulos
+            WHERE cantidad_total > 0
+            AND (
+                cantidad_disponible < 5 
+                OR (cantidad_disponible::NUMERIC / NULLIF(cantidad_total, 0)) < 0.2
+            )
+            AND estado = 'activo'
+            ORDER BY cantidad_disponible ASC
+            LIMIT 10
+        """)
+        
+        columns = [desc[0] for desc in cursor.description]
+        resultados = cursor.fetchall()
+        
+        articulos = []
+        for row in resultados:
+            articulo = dict(zip(columns, row))
+            if articulo.get('porcentaje'):
+                articulo['porcentaje'] = float(articulo['porcentaje'])
+            articulos.append(articulo)
+        
+        return jsonify({
+            'success': True,
+            'articulos': articulos
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo inventario bajo admin: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5050))
