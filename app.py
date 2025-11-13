@@ -1,1981 +1,5686 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alquifiestas - Dashboard Empleado</title>
-    <link rel="icon" type="image/svg+xml" href="static/logo-calzada.svg">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link rel="stylesheet" href="static/css/style.css">
-</head>
-<body>
-    <div class="dashboard">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="logo-container">
-                <img src="static/alquifiestas.png" alt="Logo Alquifiestas" class="logo-img">
-            </div>
 
-            <div class="user-info">
-                <h3 id="empleado-nombre">Cargando...</h3>
-                <p>Empleado</p>
-            </div>
+from flask import Flask, render_template, request, jsonify, session, send_file
+from flask_sqlalchemy import SQLAlchemy
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
+import os
+import io
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
+import tempfile
 
-            <nav class="menu-section">
-                <a href="#" class="menu-link active" data-section="inicio">
-                    <i class="fas fa-home"></i>
-                    Dashboard
-                </a>
-                <a href="#" class="menu-link" data-section="calendario">
-                    <i class="fas fa-calendar-alt"></i>
-                    Calendario
-                </a>
-                <a href="#" class="menu-link" data-section="eventos">
-                    <i class="fas fa-calendar-plus"></i>
-                    Gestión de Eventos
-                </a>
-                <a href="#" class="menu-link" data-section="cotizaciones">
-                    <i class="fas fa-file-invoice-dollar"></i>
-                    Cotizaciones
-                </a>
-                <a href="#" class="menu-link" data-section="articulos">
-                    <i class="fas fa-boxes"></i>
-                    Inventario
-                </a>
-                <a href="#" class="menu-link" data-section="clientes">
-                    <i class="fas fa-users"></i>
-                    Gestión de Clientes
-                </a>
-                <a href="#" class="menu-link" data-section="reportes">
-                    <i class="fas fa-chart-line"></i>
-                    Reportes
-                </a>
-                <a href="#" class="menu-link" data-section="perfil">
-                    <i class="fas fa-user"></i>
-                    Mi Perfil
-                </a>
-                <a href="/logout" class="menu-link">
-                    <i class="fas fa-sign-out-alt"></i>
-                    Cerrar Sesión
-                </a>
-            </nav>
-        </aside>
+# Inicialización de Flask
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', '1234')
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Dashboard de Inicio -->
-            <section id="inicio" class="section active">
-                <div class="header">
-                    <h1>Dashboard Empleado</h1>
-                    <button class="btn-primary" onclick="openModal('eventoModal')">
-                        <i class="fas fa-plus"></i>
-                        Nuevo Evento
-                    </button>
-                </div>
+# Configuración de la base de datos
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-                <!-- Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-number" id="total-eventos">0</div>
-                        <div class="stat-label">Eventos Este Mes</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="eventos-hoy">0</div>
-                        <div class="stat-label">Eventos Hoy</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="cotizaciones-pendientes">0</div>
-                        <div class="stat-label">Cotizaciones Pendientes</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="total-clientes">0</div>
-                        <div class="stat-label">Clientes Activos</div>
-                    </div>
-                </div>
+if DATABASE_URL:
+    # Producción - Render proporciona DATABASE_URL automáticamente
+    # Convertir postgresql:// a postgresql+psycopg:// para psycopg3
+    if DATABASE_URL.startswith('postgresql://'):
+        DATABASE_URL = DATABASE_URL.replace('postgresql://', 'postgresql+psycopg://', 1)
+    elif DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql+psycopg://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+else:
+    # Desarrollo - conectar directo a tu base en Render con psycopg3
+    #app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg://alquifiestas_user:OGKpbEmUIefuJ2R8YRJ8AUo7ZmlfNFW1@dpg-d2me99ogjchc73ci0mf0-a.oregon-postgres.render.com:5432/alquifiestas'
 
-                <!-- Recent Events -->
-                <div class="cards-grid">
-                    <div class="card">
-                        <h3><i class="fas fa-calendar-check"></i>Eventos Próximos</h3>
-                        <div id="eventos-proximos" class="eventos-list">
-                            <p class="text-muted">Cargando eventos...</p>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <h3><i class="fas fa-clock"></i>Actividades Pendientes</h3>
-                        <div id="actividades-pendientes">
-                            <p class="text-muted">No hay actividades pendientes</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
+     app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg://alquifiestas_user:xhOfG1JgHckIwrqjAw7bM6S7FL8GDREv@dpg-d43dbs6uk2gs738vs0h0-a.oregon-postgres.render.com:5432/alquifiestas_db'
 
-            <!-- Calendario -->
-            <section id="calendario" class="section">
-                <div class="header">
-                    <h1>Calendario de Eventos</h1>
-                    <button class="btn-primary" onclick="openModal('eventoModal')">
-                        <i class="fas fa-plus"></i>
-                        Agendar Evento
-                    </button>
-                </div>
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-                <div class="calendar-header">
-                    <div class="calendar-nav">
-                        <button onclick="cambiarMes(-1)" title="Mes anterior">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <h2 id="mes-actual">Cargando...</h2>
-                        <button onclick="cambiarMes(1)" title="Mes siguiente">
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
-                    <button class="btn btn-secondary" onclick="irAHoy()">
-                        <i class="fas fa-calendar-day"></i>
-                        Hoy
-                    </button>
-                </div>
+db = SQLAlchemy(app)
 
-                <div id="calendar-loading" class="calendar-loading" style="display: none;">
-                    <i class="fas fa-spinner fa-spin"></i> Cargando eventos...
-                </div>
+# ===============================================
+# FUNCIONES AUXILIARES PARA BASE DE DATOS
+# ===============================================
 
-                <div class="calendar-grid" id="calendar-grid">
-                    <!-- Calendar will be generated by JavaScript -->
-                </div>
+from datetime import date, datetime, time
+from decimal import Decimal
 
-                <div class="calendar-legend">
-                    <div class="legend-item">
-                        <div class="legend-color reservado"></div>
-                        <span>Reservado</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(96, 165, 250, 0.2)); border-left-color: #3B82F6;"></div>
-                        <span>Pendiente Pago</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color cancelado"></div>
-                        <span>Cancelado</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Sección: Gestión de Eventos -->
-            <section id="eventos" class="section">
-                <div class="header">
-                    <h1>Gestión de Eventos</h1>
-                    <button class="btn-primary" onclick="openModal('eventoModal')">
-                        <i class="fas fa-plus"></i>
-                        Nuevo Evento
-                    </button>
-                </div>
-
-                <div class="search-filters">
-                    <div class="search-box">
-                        <input type="text" class="form-control" placeholder="Buscar eventos..." id="search-eventos">
-                    </div>
-                    <select class="filter-select" id="filter-estado">
-                        <option value="">Todos los estados</option>
-                        <option value="reservado">Reservado</option>
-                        <option value="cancelado">Cancelado</option>
-                        <option value="pendiente_pago">Pendiente de Pagar</option>
-                    </select>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Cliente</th>
-                                <th>Fecha</th>
-                                <th>Lugar</th>
-                                <th>Estado</th>
-                                <th>Monto</th>
-                                <th>Artículos</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="eventos-table-body">
-                            <!-- Events will be loaded here -->
-                        </tbody>
-                    </table>
-
-                </div>
-                <div id="pagination-eventos" class="pagination-container"></div>
-            </section>
-
-            <!-- Cotizaciones -->
-            <section id="cotizaciones" class="section">
-                <div class="header">
-                    <h1>Cotizaciones</h1>
-                    <button class="btn-primary" onclick="openModal('cotizacionModal')">
-                        <i class="fas fa-plus"></i>
-                        Nueva Cotización
-                    </button>
-                </div>
-
-                <div class="search-filters">
-                    <div class="search-box">
-                        <input type="text" class="form-control" placeholder="Buscar cotizaciones..." id="search-cotizaciones">
-                    </div>
-                    <select class="filter-select" id="filter-estado-cotizacion">
-                        <option value="">Todos los estados</option>
-                        <option value="borrador">Borrador</option>
-                        <option value="enviada">Enviada</option>
-                        <option value="aprobada">Aprobada</option>
-                        <option value="rechazada">Rechazada</option>
-                    </select>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Número</th>
-                                <th>Cliente</th>
-                                <th>Fecha Evento</th>
-                                <th>Monto</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="cotizaciones-table-body">
-                            <!-- Cotizaciones will be loaded here -->
-                        </tbody>
-                    </table>
-                     <div id="pagination-cotizaciones" class="pagination-container"></div>
-                </div>
-            </section>
-
-            <!-- Artículos -->
-            <section id="articulos" class="section">
-                <div class="header">
-                    <h1>Gestión de Artículos</h1>
-                    <button class="btn-primary" onclick="openModal('articuloModal')">
-                        <i class="fas fa-plus"></i>
-                        Nuevo Artículo
-                    </button>
-                </div>
-
-                <div class="search-filters">
-                    <div class="search-box">
-                        <input type="text" class="form-control" placeholder="Buscar artículos..." id="search-articulos">
-                    </div>
-                    <select class="filter-select" id="filter-categoria">
-                        <option value="">Todas las categorías</option>
-                        <option value="1">Accesorios de Servicio</option>
-                        <option value="2">Cristalería y Vajilla</option>
-                        <option value="3">Decoración</option>
-                        <option value="4">Iluminación LED</option>
-                        <option value="5">Estructuras</option>
-                        <option value="6">Mantelería</option>
-                        <option value="7">Mobiliario</option>
-                        <option value="8">Otros Accesorios</option>
-                    </select>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Código</th>
-                                <th>Nombre</th>
-                                <th>Categoría</th>
-                                <th>Stock Total</th>
-                                <th>Disponible</th>
-                                <th>Precio</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="articulos-table-body">
-                            <!-- Articles will be loaded here -->
-                        </tbody>
-                    </table>
-                               <div id="pagination-articulos" class="pagination-container"></div>
-                </div>
-            </section>
-
-            <!-- Gestión de Clientes -->
-            <section id="clientes" class="section">
-                <div class="header">
-                    <h1>Gestión de Clientes</h1>
-                    <button class="btn-primary" onclick="openModal('clienteModal')">
-                        <i class="fas fa-plus"></i>
-                        Nuevo Cliente
-                    </button>
-                </div>
-
-                <div class="search-filters">
-                    <div class="search-box">
-                        <input type="text" class="form-control" placeholder="Buscar clientes..." id="search-clientes">
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Nombre</th>
-                                <th>Teléfono</th>
-                                <th>Dirección</th>
-                                <th>Eventos</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="clientes-table-body">
-                            <!-- Clients will be loaded here -->
-                        </tbody>
-                    </table>
-                     <div id="pagination-clientes" class="pagination-container"></div>
-                </div>
-            </section>
-
-            <!-- Reportes -->
-            <section id="reportes" class="section">
-                <div class="header">
-                    <h1>Centro de Reportes</h1>
-                </div>
-
-                <!-- Estadísticas rápidas de reportes -->
-                <div class="stats-grid" style="margin-bottom: 2rem;">
-                    <div class="stat-card">
-                        <div class="stat-number" id="total-eventos-mes">0</div>
-                        <div class="stat-label">Eventos Este Mes</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="valor-inventario">Q0.00</div>
-                        <div class="stat-label">Valor Total Inventario</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="reportes-problemas-mes">0</div>
-                        <div class="stat-label">Problemas Este Mes</div>
-                    </div>
-                </div>
-
-                <div class="reportes-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 2rem;">
-                    <!-- Reporte de Eventos -->
-                    <div class="reporte-card">
-                        <div class="reporte-icon" style="background: linear-gradient(135deg, #3B82F6, #60A5FA);">
-                            <i class="fas fa-calendar-alt"></i>
-                        </div>
-                        <h3>Reporte de Eventos</h3>
-                        <p class="reporte-description">Genera reportes detallados de eventos por período, estado y cliente.</p>
-                        
-                        <div class="reporte-features">
-                            <div class="feature-item">
-                                <i class="fas fa-check-circle"></i>
-                                <span>Filtrado por fechas</span>
-                            </div>
-                            <div class="feature-item">
-                                <i class="fas fa-check-circle"></i>
-                                <span>Filtrado por estado</span>
-                            </div>
-                            <div class="feature-item">
-                                <i class="fas fa-check-circle"></i>
-                                <span>Análisis financiero</span>
-                            </div>
-                        </div>
-
-                        <button class="btn-reporte" onclick="abrirConfiguracionReporte('eventos')" 
-                                style="background: linear-gradient(135deg, #3B82F6, #60A5FA);">
-                            <i class="fas fa-cog"></i> Configurar Reporte
-                        </button>
-                    </div>
-
-                    <!-- Reporte de Inventario -->
-                    <div class="reporte-card">
-                        <div class="reporte-icon" style="background: linear-gradient(135deg, #10B981, #34D399);">
-                            <i class="fas fa-boxes"></i>
-                        </div>
-                        <h3>Reporte de Inventario</h3>
-                        <p class="reporte-description">Estado actual del inventario con valorización y análisis de stock.</p>
-                        
-                        <div class="reporte-features">
-                            <div class="feature-item">
-                                <i class="fas fa-check-circle"></i>
-                                <span>Por categoría</span>
-                            </div>
-                            <div class="feature-item">
-                                <i class="fas fa-check-circle"></i>
-                                <span>Alertas de stock bajo</span>
-                            </div>
-                            <div class="feature-item">
-                                <i class="fas fa-check-circle"></i>
-                                <span>Valorización total</span>
-                            </div>
-                        </div>
-
-                        <button class="btn-reporte" onclick="abrirConfiguracionReporte('inventario')"
-                                style="background: linear-gradient(135deg, #10B981, #34D399);">
-                            <i class="fas fa-cog"></i> Configurar Reporte
-                        </button>
-                    </div>
-
-                    <!-- Reporte de Problemas -->
-                    <div class="reporte-card">
-                        <div class="reporte-icon" style="background: linear-gradient(135deg, #EF4444, #F87171);">
-                            <i class="fas fa-exclamation-triangle"></i>
-                        </div>
-                        <h3>Reporte de Problemas</h3>
-                        <p class="reporte-description">Análisis de problemas reportados, costos y responsabilidades.</p>
-                        
-                        <div class="reporte-features">
-                            <div class="feature-item">
-                                <i class="fas fa-check-circle"></i>
-                                <span>Por tipo de problema</span>
-                            </div>
-                            <div class="feature-item">
-                                <i class="fas fa-check-circle"></i>
-                                <span>Análisis de costos</span>
-                            </div>
-                            <div class="feature-item">
-                                <i class="fas fa-check-circle"></i>
-                                <span>Por responsable</span>
-                            </div>
-                        </div>
-
-                        <button class="btn-reporte" onclick="abrirConfiguracionReporte('problemas')"
-                                style="background: linear-gradient(135deg, #EF4444, #F87171);">
-                            <i class="fas fa-cog"></i> Configurar Reporte
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Gestión de Artículos por Evento -->
-            <section id="gestion-articulos" class="section">
-                <div class="header">
-                    <h1>Gestión de Artículos por Evento</h1>
-                </div>
-
-                <div class="search-filters">
-                    <div class="search-box">
-                        <input type="text" class="form-control" placeholder="Buscar eventos..." id="search-gestion-eventos">
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Número Evento</th>
-                                <th>Cliente</th>
-                                <th>Fecha</th>
-                                <th>Estado Evento</th>
-                                <th>Total Artículos</th>
-                                <th>Progreso</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gestion-eventos-table-body">
-                            <!-- Eventos will be loaded here -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Mi Perfil -->
-            <section id="perfil" class="section">
-                <div class="header">
-                    <h1>Mi Perfil</h1>
-                </div>
-
-                <div class="card">
-                    <h3><i class="fas fa-user"></i>Información Personal</h3>
-                    <form id="perfil-form">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Nombre Completo</label>
-                                <input type="text" class="form-control" id="perfil-nombre" readonly>
-                            </div>
-                            <div class="form-group">
-                                <label>Email</label>
-                                <input type="email" class="form-control" id="perfil-email" readonly>
-                            </div>
-                            <div class="form-group">
-                                <label>Teléfono</label>
-                                <input type="text" class="form-control" id="perfil-telefono">
-                            </div>
-                            <div class="form-group">
-                                <label>Cargo</label>
-                                <input type="text" class="form-control" id="perfil-cargo" readonly>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Dirección</label>
-                            <textarea class="form-control" id="perfil-direccion" rows="3"></textarea>
-                        </div>
-                        <button type="button" class="btn-primary" onclick="actualizarPerfil()">
-                            <i class="fas fa-save"></i>
-                            Actualizar Perfil
-                        </button>
-                    </form>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Modal Gestión de Artículos del Evento -->
-    <div id="gestionArticulosEventoModal" class="modal">
-        <div class="modal-content" style="max-width: 1200px;">
-            <div class="modal-header">
-                <h2>inventario - <span id="gestion-evento-numero"></span></h2>
-                <span class="close" onclick="closeModal('gestionArticulosEventoModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="evento-info" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
-                    <div class="form-grid" style="grid-template-columns: repeat(3, 1fr);">
-                        <div>
-                            <strong>Cliente:</strong>
-                            <p id="gestion-cliente-nombre">-</p>
-                        </div>
-                        <div>
-                            <strong>Fecha Evento:</strong>
-                            <p id="gestion-fecha-evento">-</p>
-                        </div>
-                        <div>
-                            <strong>Estado:</strong>
-                            <p id="gestion-estado-evento">-</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Código</th>
-                                <th>Artículo</th>
-                                <th>Cantidad</th>
-                                <th>Stock Actual</th>
-                                <th>Problemas con el Artículo</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gestion-articulos-detalle-body">
-                            <!-- Articles details will be loaded here -->
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- CONTROLES GLOBALES -->
-                <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem; border: 2px solid #e5e7eb;">
-                    <div class="form-grid" style="grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
-                        <!-- Selector de Estado Global -->
-                        <div>
-                            <label style="font-weight: 600; color: #1f2937; margin-bottom: 0.5rem; display: block;">
-                                Los artículos se encuentran
-                            </label>
-                            <select id="estado-global-articulos" class="form-control" style="padding: 0.75rem; font-size: 1rem; font-weight: 500;">
-                                <option value="">Seleccionar estado...</option>
-                                <option value="reservado">Reservado</option>
-                                <option value="entregado">Entregado</option>
-                                <option value="recogido">Recogido</option>
-                            </select>
-                            <button class="btn btn-primary" onclick="actualizarEstadoGlobal()" style="margin-top: 1rem; width: 100%;">
-                                <i class="fas fa-save"></i> Aplicar Estado a Todos
-                            </button>
-                        </div>
-
-                        <!-- Registro de Fechas y Horas -->
-                        <div>
-                            <label style="font-weight: 600; color: #1f2937; margin-bottom: 0.5rem; display: block;">
-                                Hora y Fecha de Actualización de los Estados
-                            </label>
-                            <div id="registro-estados" style="background: white; padding: 1rem; border-radius: 6px; border: 1px solid #d1d5db; min-height: 100px;">
-                                <div id="estado-reservado-registro" style="margin-bottom: 0.5rem; color: #6b7280;">
-                                    <strong style="color: #f59e0b;">Reservado:</strong> <span>Sin registro</span>
-                                </div>
-                                <div id="estado-entregado-registro" style="margin-bottom: 0.5rem; color: #6b7280;">
-                                    <strong style="color: #2563eb;">Entregado:</strong> <span>Sin registro</span>
-                                </div>
-                                <div id="estado-recogido-registro" style="color: #6b7280;">
-                                    <strong style="color: #10b981;">Recogido:</strong> <span>Sin registro</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+def authenticate_user(username, password):
+    """Función para autenticar usuario (solo admin y empleados)"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        cursor.execute("""
+            SELECT id, username, email, full_name, user_type, is_active
+            FROM users 
+            WHERE username = %s AND password = %s AND is_active = true
+            AND user_type IN ('admin', 'empleado')
+        """, (username, password))
+        
+        result = cursor.fetchone()
+        if result:
+            columns = ['id', 'username', 'email', 'full_name', 'user_type', 'is_active']
+            user_data = dict(zip(columns, result))
             
-            <!-- Botón de Reportar Problemas (visible solo si hay artículos seleccionados) -->
-            <div id="reportar-problemas-container" style="display: none; padding: 1.5rem; background: #FEF2F2; border-top: 2px solid #FCA5A5; margin: 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <i class="fas fa-exclamation-triangle" style="color: #DC2626; font-size: 1.5rem;"></i>
-                        <div>
-                            <strong style="color: #991B1B; font-size: 1.1rem;">
-                                <span id="count-seleccionados">0</span> Artículo(s) Seleccionado(s)
-                            </strong>
-                            <p style="margin: 0; color: #7C2D12; font-size: 0.9rem;">Haz clic en "Reportar Problemas" para continuar</p>
-                        </div>
-                    </div>
-                    <button 
-                        type="button" 
-                        class="btn btn-danger" 
-                        onclick="abrirReportarProblemasMultiples()"
-                        style="background: linear-gradient(135deg, #EF4444, #DC2626); padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.75rem;">
-                        <i class="fas fa-exclamation-circle"></i>
-                        Reportar Problemas
-                    </button>
-                </div>
-            </div>
+            # Actualizar último login
+            cursor.execute("""
+                UPDATE users 
+                SET last_login = CURRENT_TIMESTAMP 
+                WHERE id = %s
+            """, (user_data['id'],))
+            db.session.commit()
             
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('gestionArticulosEventoModal')">Cerrar</button>
-            </div>
-        </div>
-    </div>
+            return user_data
+        return None
+    except Exception as e:
+        print(f"Error en authenticate_user: {str(e)}")
+        return None
 
-    <!-- MODAL DE PROBLEMAS -->
-    <div id="problemaArticuloModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h2>Registrar Problema con Artículo</h2>
-                <span class="close" onclick="closeModal('problemaArticuloModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="problema-id-detalle">
-                <input type="hidden" id="problema-id-articulo">
+def create_employee(username, password, email, full_name, telefono='', direccion='', cargo=''):
+    """Función para crear nuevo empleado"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar si el usuario ya existe
+        cursor.execute("""
+            SELECT id FROM users 
+            WHERE username = %s OR email = %s
+        """, (username, email))
+        
+        if cursor.fetchone():
+            return None
+        
+        # Crear nuevo usuario tipo empleado
+        cursor.execute("""
+            INSERT INTO users (username, email, password, full_name, user_type)
+            VALUES (%s, %s, %s, %s, 'empleado')
+            RETURNING id
+        """, (username, email, password, full_name or username))
+        
+        user_id = cursor.fetchone()[0]
+        
+        # Crear registro en tabla empleados
+        cursor.execute("""
+            INSERT INTO empleados (user_id, nombre, telefono, direccion, cargo)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (user_id, full_name or username, telefono, direccion, cargo))
+        
+        db.session.commit()
+        return user_id
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en create_employee: {str(e)}")
+        return None
+
+def create_admin(username, password, email, full_name, telefono='', direccion=''):
+    """Función para crear nuevo administrador"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar si el usuario ya existe
+        cursor.execute("""
+            SELECT id FROM users 
+            WHERE username = %s OR email = %s
+        """, (username, email))
+        
+        if cursor.fetchone():
+            return None
+        
+        # Crear nuevo usuario tipo admin
+        cursor.execute("""
+            INSERT INTO users (username, email, password, full_name, user_type)
+            VALUES (%s, %s, %s, %s, 'admin')
+            RETURNING id
+        """, (username, email, password, full_name or username))
+        
+        user_id = cursor.fetchone()[0]
+        
+        # Crear registro en tabla administradores
+        cursor.execute("""
+            INSERT INTO administradores (user_id, nombre, telefono, direccion)
+            VALUES (%s, %s, %s, %s)
+        """, (user_id, full_name or username, telefono, direccion))
+        
+        db.session.commit()
+        return user_id
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en create_admin: {str(e)}")
+        return None
+
+def get_user_info(user_id):
+    """Obtener información completa del usuario"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        cursor.execute("""
+            SELECT u.*, 
+                   e.id_empleado, e.telefono as empleado_telefono, 
+                   e.direccion as empleado_direccion, e.cargo,
+                   a.id_admin, a.telefono as admin_telefono, 
+                   a.direccion as admin_direccion
+            FROM users u
+            LEFT JOIN empleados e ON u.id = e.user_id
+            LEFT JOIN administradores a ON u.id = a.user_id
+            WHERE u.id = %s
+        """, (user_id,))
+        
+        columns = [desc[0] for desc in cursor.description]
+        result = cursor.fetchone()
+        
+        if result:
+            return dict(zip(columns, result))
+        return None
+        
+    except Exception as e:
+        print(f"Error obteniendo info usuario: {str(e)}")
+        return None
+
+# ===============================================
+# RUTAS BÁSICAS
+# ===============================================
+
+@app.route('/')
+def index():
+    return render_template('login.html')
+
+@app.route('/register_page')
+def register_page():
+    return render_template('register.html')
+# ========================================
+# ENDPOINTS DE AUTENTICACIÓN
+# ========================================
+
+from flask import request, jsonify, session
+
+# ========================================
+# LOGIN
+# ========================================
+@app.route('/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+
+        # Validar campos vacíos
+        if not username or not password:
+            return jsonify({
+                'success': False,
+                'message': 'Usuario y contraseña son requeridos'
+            }), 400
+
+        cursor = db.session.connection().connection.cursor()
+        cursor.execute("""
+            SELECT id, username, password, user_type, full_name, email, is_active
+            FROM users
+            WHERE username = %s
+        """, (username,))
+        result = cursor.fetchone()
+
+        if not result:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'message': 'Usuario no encontrado'
+            }), 404
+
+        columns = ['id', 'username', 'password', 'user_type', 'full_name', 'email', 'is_active']
+        user_data = dict(zip(columns, result))
+
+        # Validar contraseña sin hashing
+        if user_data['password'] != password:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'message': 'Contraseña incorrecta'
+            }), 401
+
+        # Validar estado activo
+        if not user_data['is_active']:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'message': 'El usuario está inactivo'
+            }), 403
+
+        # Inicializar datos de sesión
+        session.clear()
+        session['user'] = user_data['username']
+        session['user_id'] = user_data['id']
+        session['user_name'] = user_data['full_name']
+        session['user_type'] = user_data['user_type']
+        session['is_admin'] = user_data['user_type'] == 'admin'
+        session['is_empleado'] = user_data['user_type'] == 'empleado'
+
+        # Guardar información completa (evita error de JSON inválido)
+        session['user_data'] = {
+            'id': user_data['id'],
+            'username': user_data['username'],
+            'full_name': user_data['full_name'],
+            'email': user_data['email'],
+            'user_type': user_data['user_type']
+        }
+
+        # Obtener IDs relacionados si aplica
+        if session['is_empleado']:
+            cursor.execute("SELECT id_empleado FROM empleados WHERE user_id = %s", (user_data['id'],))
+            empleado = cursor.fetchone()
+            if empleado:
+                session['empleado_id'] = empleado[0]
+        elif session['is_admin']:
+            cursor.execute("SELECT id_admin FROM administradores WHERE user_id = %s", (user_data['id'],))
+            admin = cursor.fetchone()
+            if admin:
+                session['admin_id'] = admin[0]
+
+        # Actualizar fecha de último login
+        cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = %s", (user_data['id'],))
+        db.session.commit()
+        cursor.close()
+
+        print("🟢 Sesión guardada:", session.get('user'))
+
+        # Responder
+        return jsonify({
+            'success': True,
+            'message': 'Inicio de sesión exitoso',
+            'user_type': user_data['user_type'],
+            'redirect': '/admin_dashboard' if session['is_admin'] else '/employee_dashboard'
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error en login: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error interno del servidor'
+        }), 500
+
+
+@app.route('/register', methods=['POST'])
+def register():
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        email = data.get('email')
+        full_name = data.get('full_name')
+        user_type = data.get('user_type', 'empleado')  # Por defecto empleado
+        telefono = data.get('telefono', '')
+        direccion = data.get('direccion', '')
+        cargo = data.get('cargo', '')
+        
+        if not username or not password or not email:
+            return jsonify({
+                'success': False,
+                'message': 'Usuario, contraseña y email son requeridos'
+            }), 400
+        
+        # Crear usuario según el tipo
+        user_id = None
+        if user_type == 'admin':
+            user_id = create_admin(username, password, email, full_name, telefono, direccion)
+        else:
+            user_id = create_employee(username, password, email, full_name, telefono, direccion, cargo)
+        
+        if user_id:
+            return jsonify({
+                'success': True,
+                'message': f'{user_type.capitalize()} registrado exitosamente'
+            }), 201
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Error al registrar usuario. El usuario o email ya existe.'
+            }), 400
+            
+    except Exception as e:
+        print(f"Error en register: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error en el servidor'
+        }), 500
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return render_template('login.html')
+
+@app.route('/dashboard')
+def dashboard():
+    """Redirigir al dashboard apropiado según el tipo de usuario"""
+    if 'user' not in session:
+        return render_template('login.html')
+    
+    if session.get('is_admin'):
+        return admin_dashboard()
+    elif session.get('is_empleado'):
+        return employee_dashboard()
+    else:
+        return render_template('login.html')
+
+@app.route('/admin_dashboard')
+def admin_dashboard():
+    """Dashboard para administradores"""
+    if 'user' not in session or not session.get('is_admin'):
+        return render_template('login.html')
+    
+    user_info = {
+        'username': session.get('user'),
+        'name': session.get('user_name'),
+        'user_type': 'admin',
+        'is_admin': True
+    }
+    
+    return render_template('admin_dashboard.html', user=user_info)
+
+@app.route('/employee_dashboard')
+def employee_dashboard():
+    """Dashboard para empleados"""
+    if 'user' not in session or not session.get('is_empleado'):
+        return render_template('login.html')
+    
+    user_info = {
+        'username': session.get('user'),
+        'name': session.get('user_name'),
+        'user_type': 'empleado',
+        'is_empleado': True,
+        'empleado_id': session.get('empleado_id')
+    }
+    
+    return render_template('employee_dashboard.html', user=user_info)
+
+# ===============================================
+# RUTAS API PARA GESTIÓN DE CLIENTES
+# ===============================================
+
+@app.route('/api/clientes', methods=['GET'])
+def get_clientes():
+    """Obtener lista de clientes (solo para admin/empleados)"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        cursor.execute("""
+            SELECT c.id_cliente, c.nombre, c.telefono, c.direccion, c.notas,
+                   u.email, u.created_at, u.is_active
+            FROM clientes c
+            LEFT JOIN users u ON c.user_id = u.id
+            ORDER BY c.nombre
+        """)
+        
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
+        
+        clientes = [dict(zip(columns, row)) for row in results]
+        
+        return jsonify({
+            'success': True,
+            'clientes': clientes
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo clientes: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo clientes'
+        }), 500
+
+@app.route('/api/clientes', methods=['POST'])
+def create_cliente():
+    """Crear nuevo cliente (solo para admin/empleados)"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        data = request.get_json()
+        nombre = data.get('nombre')
+        telefono = data.get('telefono', '')
+        direccion = data.get('direccion', '')
+        email = data.get('email', '')
+        notas = data.get('notas', '')
+        
+        if not nombre:
+            return jsonify({
+                'success': False,
+                'message': 'El nombre es requerido'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Crear cliente sin usuario asociado (solo registro de datos)
+        cursor.execute("""
+            INSERT INTO clientes (nombre, telefono, direccion, notas, user_id)
+            VALUES (%s, %s, %s, %s, NULL)
+            RETURNING id_cliente
+        """, (nombre, telefono, direccion, notas))
+        
+        cliente_id = cursor.fetchone()[0]
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cliente creado exitosamente',
+            'cliente_id': cliente_id
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creando cliente: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error creando cliente'
+        }), 500
+
+@app.route('/api/empleados', methods=['GET'])
+def get_empleados():
+    """Obtener lista de empleados (solo para admin)"""
+    if 'user' not in session or not session.get('is_admin'):
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        cursor.execute("""
+            SELECT e.id_empleado, e.nombre, e.telefono, e.direccion, e.cargo, 
+                   e.fecha_ingreso, u.email, u.username, u.is_active
+            FROM empleados e
+            JOIN users u ON e.user_id = u.id
+            ORDER BY e.nombre
+        """)
+        
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
+        
+        empleados = [dict(zip(columns, row)) for row in results]
+        
+        return jsonify({
+            'success': True,
+            'empleados': empleados
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo empleados: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo empleados'
+        }), 500
+    
+
+@app.route('/api/clientes/<int:id_cliente>', methods=['PUT'])
+def update_cliente(id_cliente):
+    """Actualizar un cliente existente"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        data = request.get_json()
+        nombre = data.get('nombre')
+        telefono = data.get('telefono', '')
+        direccion = data.get('direccion', '')
+        notas = data.get('notas', '')
+        
+        if not nombre:
+            return jsonify({
+                'success': False,
+                'message': 'El nombre es requerido'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el cliente existe
+        cursor.execute(
+            "SELECT id_cliente FROM clientes WHERE id_cliente = %s",
+            (id_cliente,)
+        )
+        
+        if not cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': 'Cliente no encontrado'
+            }), 404
+        
+        # Actualizar cliente
+        cursor.execute("""
+            UPDATE clientes 
+            SET nombre = %s, telefono = %s, direccion = %s, notas = %s
+            WHERE id_cliente = %s
+        """, (nombre, telefono, direccion, notas, id_cliente))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cliente actualizado exitosamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error actualizando cliente: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error actualizando cliente: {str(e)}'
+        }), 500
+
+
+@app.route('/api/clientes/<int:id_cliente>', methods=['DELETE'])
+def delete_cliente(id_cliente):
+    """Eliminar un cliente"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el cliente existe
+        cursor.execute(
+            "SELECT id_cliente FROM clientes WHERE id_cliente = %s",
+            (id_cliente,)
+        )
+        
+        if not cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': 'Cliente no encontrado'
+            }), 404
+        
+        # Verificar si tiene eventos o cotizaciones asociadas
+        cursor.execute(
+            "SELECT COUNT(*) FROM eventos WHERE id_cliente = %s",
+            (id_cliente,)
+        )
+        eventos_count = cursor.fetchone()[0]
+        
+        if eventos_count > 0:
+            return jsonify({
+                'success': False,
+                'message': 'No se puede eliminar el cliente porque tiene eventos asociados'
+            }), 400
+        
+        # Eliminar cliente
+        cursor.execute(
+            "DELETE FROM clientes WHERE id_cliente = %s",
+            (id_cliente,)
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cliente eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error eliminando cliente: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error eliminando cliente: {str(e)}'
+        }), 500
+
+
+
+# ===============================================
+# VERIFICACIÓN DE PERMISOS
+# ===============================================
+
+def require_login(f):
+    """Decorador para requerir login"""
+    def wrapper(*args, **kwargs):
+        if 'user' not in session:
+            return render_template('login.html')
+        return f(*args, **kwargs)
+    wrapper.__name__ = f.__name__
+    return wrapper
+
+def require_admin(f):
+    """Decorador para requerir permisos de administrador"""
+    def wrapper(*args, **kwargs):
+        if 'user' not in session or not session.get('is_admin'):
+            return jsonify({'success': False, 'message': 'Acceso denegado'}), 403
+        return f(*args, **kwargs)
+    wrapper.__name__ = f.__name__
+    return wrapper
+
+# ===============================================
+# INICIALIZACIÓN
+# ===============================================
+
+def verify_database_connection():
+    """Verificar conexión a base de datos"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        cursor.execute("SELECT 1")
+        result = cursor.fetchone()
+        print("Conexión a base de datos exitosa")
+        return True
+    except Exception as e:
+        print(f"Error conectando a base de datos: {str(e)}")
+        return False
+
+# Inicializar aplicación
+try:
+    with app.app_context():
+        if verify_database_connection():
+            print("Base de datos lista para usar")
+        else:
+            print("Error en conexión a base de datos")
+except Exception as e:
+    print(f"Error inicializando aplicación: {str(e)}")
+
+# ===============================================
+# FUNCIONES AUXILIARES
+# ===============================================
+
+def require_login():
+    """Verificar si el usuario está logueado"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    return None
+
+def get_empleado_id():
+    """Obtener ID del empleado actual"""
+    return session.get('empleado_id')
+
+def get_user_id():
+    """Obtener ID del usuario actual"""
+    return session.get('user_id')
+
+# ===============================================
+# ENDPOINTS DASHBOARD Y ESTADÍSTICAS
+# ===============================================
+
+@app.route('/api/dashboard/stats', methods=['GET'])
+def get_dashboard_stats():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Total eventos este mes
+        cursor.execute("""
+            SELECT COUNT(*) FROM eventos 
+            WHERE (id_empleado_asignado = %s OR %s IS NULL)
+        """, (empleado_id, empleado_id))
+        total_eventos = cursor.fetchone()[0]
+        
+        # Eventos hoy
+        cursor.execute("""
+            SELECT COUNT(*) FROM eventos 
+            WHERE fecha_evento = CURRENT_DATE
+            AND (id_empleado_asignado = %s OR %s IS NULL)
+        """, (empleado_id, empleado_id))
+        eventos_hoy = cursor.fetchone()[0]
+        
+        # Cotizaciones pendientes
+        cursor.execute("""
+            SELECT COUNT(*) FROM cotizaciones 
+            WHERE (id_empleado = %s OR %s IS NULL)
+        """, (empleado_id, empleado_id))
+        cotizaciones_pendientes = cursor.fetchone()[0]
+        
+        # Total clientes
+        cursor.execute("SELECT COUNT(*) FROM clientes")
+        total_clientes = cursor.fetchone()[0]
+        
+        return jsonify({
+            'success': True,
+            'total_eventos': total_eventos,
+            'eventos_hoy': eventos_hoy,
+            'cotizaciones_pendientes': cotizaciones_pendientes,
+            'total_clientes': total_clientes
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo estadísticas: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo estadísticas'
+        }), 500
+
+# ===============================================
+# ENDPOINTS EVENTOS
+# ===============================================
+@app.route('/api/eventos', methods=['GET'])
+def get_eventos():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Obtener parámetros de filtro
+        estado = request.args.get('estado')
+        fecha_inicio = request.args.get('fecha_inicio')
+        fecha_fin = request.args.get('fecha_fin')
+        
+        # Query base
+        query = """
+            SELECT e.id_evento, e.numero_evento, e.fecha_evento, e.hora_inicio, e.hora_fin,
+                   e.lugar_evento, e.numero_invitados, e.estado, e.monto_total, e.monto_pagado,
+                   e.notas, e.created_at, c.nombre as cliente_nombre, c.telefono as cliente_telefono
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            WHERE 1=1
+        """
+        
+        params = []
+        
+        # Filtros
+        if empleado_id:
+            query += " AND (e.id_empleado_asignado = %s OR e.id_empleado_asignado IS NULL)"
+            params.append(empleado_id)
+            
+        if estado:
+            query += " AND e.estado = %s"
+            params.append(estado)
+            
+        if fecha_inicio:
+            query += " AND e.fecha_evento >= %s"
+            params.append(fecha_inicio)
+            
+        if fecha_fin:
+            query += " AND e.fecha_evento <= %s"
+            params.append(fecha_fin)
+        
+        query += " ORDER BY e.fecha_evento DESC, e.created_at DESC"
+        
+        cursor.execute(query, params)
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
+        
+        eventos = []
+        for row in results:
+            evento = dict(zip(columns, row))
+            # Convertir Decimal a float para JSON
+            if evento['monto_total']:
+                evento['monto_total'] = float(evento['monto_total'])
+            if evento['monto_pagado']:
+                evento['monto_pagado'] = float(evento['monto_pagado'])
+            # Convertir fechas y horas a string
+            if evento['fecha_evento']:
+                evento['fecha_evento'] = evento['fecha_evento'].isoformat()
+            if evento['hora_inicio']:
+                evento['hora_inicio'] = str(evento['hora_inicio'])
+            if evento['hora_fin']:
+                evento['hora_fin'] = str(evento['hora_fin'])
+            if evento['created_at']:
+                evento['created_at'] = evento['created_at'].isoformat()
+            eventos.append(evento)
+        
+        return jsonify({
+            'success': True,
+            'eventos': eventos
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo eventos: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo eventos'
+        }), 500
+
+@app.route('/api/eventos/proximos', methods=['GET'])
+def get_eventos_proximos():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Eventos próximos (siguientes 7 días)
+        query = """
+            SELECT e.id_evento, e.fecha_evento, e.hora_inicio, e.hora_fin,
+                   e.lugar_evento, e.estado, c.nombre as cliente_nombre
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            WHERE e.fecha_evento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+            AND (e.id_empleado_asignado = %s OR e.id_empleado_asignado IS NULL OR %s IS NULL)
+            ORDER BY e.fecha_evento ASC, e.hora_inicio ASC
+            LIMIT 5
+        """
+        
+        cursor.execute(query, (empleado_id, empleado_id))
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
+        
+        eventos = []
+        for row in results:
+            evento = dict(zip(columns, row))
+            if evento['fecha_evento']:
+                evento['fecha_evento'] = evento['fecha_evento'].isoformat()
+            if evento['hora_inicio']:
+                evento['hora_inicio'] = str(evento['hora_inicio'])
+            if evento['hora_fin']:
+                evento['hora_fin'] = str(evento['hora_fin'])
+            eventos.append(evento)
+        
+        return jsonify({
+            'success': True,
+            'eventos': eventos
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo eventos próximos: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo eventos próximos'
+        }), 500
+
+@app.route('/api/eventos', methods=['POST'])
+def create_evento():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        
+        # Validaciones
+        required_fields = ['id_cliente', 'fecha_evento']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({
+                    'success': False,
+                    'message': f'El campo {field} es requerido'
+                }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Generar número de evento único
+        cursor.execute("SELECT COUNT(*) FROM eventos WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)")
+        count = cursor.fetchone()[0] + 1
+        numero_evento = f"EVT-{datetime.now().year}-{count:04d}"
+        
+        # Insertar evento
+        cursor.execute("""
+            INSERT INTO eventos (numero_evento, id_cliente, id_empleado_asignado, fecha_evento,
+                               hora_inicio, hora_fin, lugar_evento, numero_invitados, notas, estado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'reservado')
+            RETURNING id_evento
+        """, (
+            numero_evento,
+            data['id_cliente'],
+            empleado_id,
+            data['fecha_evento'],
+            data.get('hora_inicio'),
+            data.get('hora_fin'),
+            data.get('lugar_evento', ''),
+            data.get('numero_invitados'),
+            data.get('notas', '')
+        ))
+        
+        evento_id = cursor.fetchone()[0]
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Evento creado exitosamente',
+            'evento_id': evento_id,
+            'numero_evento': numero_evento
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creando evento: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error creando evento'
+        }), 500
+
+@app.route('/api/eventos/<int:evento_id>', methods=['GET'])
+def get_evento_detail(evento_id):
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener evento con detalles
+        cursor.execute("""
+            SELECT e.*, c.nombre as nombre_cliente, c.telefono as telefono_cliente,
+                   c.direccion as cliente_direccion, c.notas as cliente_notas
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            WHERE e.id_evento = %s
+        """, (evento_id,))
+        
+        columns = [desc[0] for desc in cursor.description]
+        result = cursor.fetchone()
+        
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Evento no encontrado'
+            }), 404
+        
+        evento = dict(zip(columns, result))
+        
+        # Convertir tipos para JSON
+        if evento.get('monto_total'):
+            evento['monto_total'] = float(evento['monto_total'])
+        if evento.get('monto_pagado'):
+            evento['monto_pagado'] = float(evento['monto_pagado'])
+        if evento.get('fecha_evento'):
+            evento['fecha_evento'] = evento['fecha_evento'].isoformat()
+        if evento.get('hora_inicio'):
+            evento['hora_inicio'] = str(evento['hora_inicio'])[:5]
+        if evento.get('hora_fin'):
+            evento['hora_fin'] = str(evento['hora_fin'])[:5]
+        if evento.get('created_at'):
+            evento['created_at'] = evento['created_at'].isoformat()
+        if evento.get('updated_at'):
+            evento['updated_at'] = evento['updated_at'].isoformat()
+        
+        # Obtener artículos del evento
+        cursor.execute("""
+            SELECT ea.id_detalle, ea.id_evento, ea.id_articulo, 
+                   ea.cantidad_solicitada, ea.precio_unitario, ea.estado_articulo,
+                   a.nombre_articulo, a.codigo, a.precio_unitario as precio_base
+            FROM evento_articulos ea
+            JOIN articulos a ON ea.id_articulo = a.id_articulo
+            WHERE ea.id_evento = %s
+        """, (evento_id,))
+        
+        articulos_columns = [desc[0] for desc in cursor.description]
+        articulos_results = cursor.fetchall()
+        
+        articulos = []
+        for row in articulos_results:
+            articulo = dict(zip(articulos_columns, row))
+            if articulo.get('precio_unitario'):
+                articulo['precio_unitario'] = float(articulo['precio_unitario'])
+            if articulo.get('precio_base'):
+                articulo['precio_base'] = float(articulo['precio_base'])
+            if articulo.get('cantidad_solicitada'):
+                articulo['cantidad'] = int(articulo['cantidad_solicitada'])
+            articulos.append(articulo)
+        
+        # Obtener servicios del evento
+        cursor.execute("""
+            SELECT es.id_detalle, es.id_evento, es.id_servicio, 
+                   es.horas_contratadas, es.precio_unitario,
+                   s.nombre_servicio, s.categoria, s.precio_por_hora, s.precio_fijo
+            FROM evento_servicios es
+            JOIN servicios s ON es.id_servicio = s.id_servicio
+            WHERE es.id_evento = %s
+        """, (evento_id,))
+        
+        servicios_columns = [desc[0] for desc in cursor.description]
+        servicios_results = cursor.fetchall()
+        
+        servicios = []
+        for row in servicios_results:
+            servicio = dict(zip(servicios_columns, row))
+            if servicio.get('precio_unitario'):
+                servicio['precio_unitario'] = float(servicio['precio_unitario'])
+            if servicio.get('precio_por_hora'):
+                servicio['precio_por_hora'] = float(servicio['precio_por_hora'])
+            if servicio.get('precio_fijo'):
+                servicio['precio_fijo'] = float(servicio['precio_fijo'])
+            if servicio.get('horas_contratadas'):
+                servicio['cantidad_horas'] = int(servicio['horas_contratadas'])
+            servicios.append(servicio)
+        
+        evento['articulos'] = articulos
+        evento['servicios'] = servicios
+        
+        return jsonify({
+            'success': True,
+            'evento': evento
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo detalle de evento: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo detalle de evento'
+        }), 500
+
+# ===============================================
+# ENDPOINTS COTIZACIONES
+# ===============================================
+
+@app.route('/api/cotizaciones', methods=['GET'])
+def get_cotizaciones():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Obtener parámetros de filtro
+        estado = request.args.get('estado')
+        
+        query = """
+            SELECT c.id_cotizacion, c.numero_cotizacion, c.fecha_cotizacion, c.fecha_evento,
+                   c.lugar_evento, c.numero_invitados, c.monto_total, c.descuento, c.estado,
+                   c.vigencia_dias, c.notas, cl.nombre as cliente_nombre
+            FROM cotizaciones c
+            LEFT JOIN clientes cl ON c.id_cliente = cl.id_cliente
+            WHERE 1=1
+        """
+        
+        params = []
+        
+        if empleado_id:
+            query += " AND (c.id_empleado = %s OR c.id_empleado IS NULL)"
+            params.append(empleado_id)
+            
+        if estado:
+            query += " AND c.estado = %s"
+            params.append(estado)
+        
+        query += " ORDER BY c.fecha_cotizacion DESC"
+        
+        cursor.execute(query, params)
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
+        
+        cotizaciones = []
+        for row in results:
+            cotizacion = dict(zip(columns, row))
+            # Convertir tipos para JSON
+            if cotizacion['monto_total']:
+                cotizacion['monto_total'] = float(cotizacion['monto_total'])
+            if cotizacion['descuento']:
+                cotizacion['descuento'] = float(cotizacion['descuento'])
+            if cotizacion['fecha_cotizacion']:
+                cotizacion['fecha_cotizacion'] = cotizacion['fecha_cotizacion'].isoformat()
+            if cotizacion['fecha_evento']:
+                cotizacion['fecha_evento'] = cotizacion['fecha_evento'].isoformat()
+            cotizaciones.append(cotizacion)
+        
+        return jsonify({
+            'success': True,
+            'cotizaciones': cotizaciones
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo cotizaciones: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo cotizaciones'
+        }), 500
+
+@app.route('/api/cotizaciones', methods=['POST'])
+def create_cotizacion():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        
+        if not data.get('id_cliente'):
+            return jsonify({
+                'success': False,
+                'message': 'El cliente es requerido'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Generar número de cotización único
+        cursor.execute("SELECT COUNT(*) FROM cotizaciones WHERE EXTRACT(YEAR FROM fecha_cotizacion) = EXTRACT(YEAR FROM CURRENT_DATE)")
+        count = cursor.fetchone()[0] + 1
+        numero_cotizacion = f"COT-{datetime.now().year}-{count:04d}"
+        
+        # Insertar cotización
+        cursor.execute("""
+            INSERT INTO cotizaciones (numero_cotizacion, id_cliente, id_empleado, fecha_evento,
+                                    hora_inicio, hora_fin, lugar_evento, numero_invitados, notas)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id_cotizacion
+        """, (
+            numero_cotizacion,
+            data['id_cliente'],
+            empleado_id,
+            data.get('fecha_evento'),
+            data.get('hora_inicio'),
+            data.get('hora_fin'),
+            data.get('lugar_evento', ''),
+            data.get('numero_invitados'),
+            data.get('notas', '')
+        ))
+        
+        cotizacion_id = cursor.fetchone()[0]
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cotización creada exitosamente',
+            'cotizacion_id': cotizacion_id,
+            'numero_cotizacion': numero_cotizacion
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creando cotización: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error creando cotización'
+        }), 500
+
+# ===============================================
+# ENDPOINTS MEJORADOS PARA COTIZACIONES
+# ===============================================
+
+@app.route('/api/cotizaciones/completa', methods=['POST'])
+def create_cotizacion_completa():
+    """Crear cotización completa con artículos y servicios SIN afectar inventario"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Generar número de cotización único
+        cursor.execute("SELECT COUNT(*) FROM cotizaciones WHERE EXTRACT(YEAR FROM fecha_cotizacion) = EXTRACT(YEAR FROM CURRENT_DATE)")
+        count = cursor.fetchone()[0] + 1
+        numero_cotizacion = f"COT-{datetime.now().year}-{count:04d}"
+        
+        # Insertar cotización (cliente puede ser NULL)
+        cursor.execute("""
+            INSERT INTO cotizaciones (numero_cotizacion, id_cliente, id_empleado, fecha_evento,
+                                    hora_inicio, hora_fin, lugar_evento, numero_invitados, 
+                                    monto_total, notas, estado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'borrador')
+            RETURNING id_cotizacion
+        """, (
+            numero_cotizacion,
+            data.get('id_cliente'),  # Puede ser None
+            empleado_id,
+            data.get('fecha_evento'),
+            data.get('hora_inicio'),
+            data.get('hora_fin'),
+            data.get('lugar_evento', ''),
+            data.get('numero_invitados'),
+            data.get('monto_total', 0),
+            data.get('notas', '')
+        ))
+        
+        cotizacion_id = cursor.fetchone()[0]
+        
+        # Insertar artículos de la cotización (SOLO registro, NO afecta inventario)
+        articulos = data.get('articulos', [])
+        for articulo in articulos:
+            cursor.execute("""
+                INSERT INTO cotizacion_articulos (id_cotizacion, id_articulo, cantidad, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                cotizacion_id,
+                articulo['id_articulo'],
+                articulo['cantidad'],
+                articulo['precio_unitario']
+            ))
+        
+        # Insertar servicios de la cotización
+        servicios = data.get('servicios', [])
+        for servicio in servicios:
+            cursor.execute("""
+                INSERT INTO cotizacion_servicios (id_cotizacion, id_servicio, cantidad_horas, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                cotizacion_id,
+                servicio['id_servicio'],
+                servicio.get('cantidad', 1),
+                servicio['precio_unitario']
+            ))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cotización creada exitosamente',
+            'cotizacion_id': cotizacion_id,
+            'numero_cotizacion': numero_cotizacion
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creando cotización completa: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error creando cotización: {str(e)}'
+        }), 500
+
+
+@app.route('/api/cotizaciones/<int:cotizacion_id>/detalle', methods=['GET'])
+def get_cotizacion_completa(cotizacion_id):
+    """Obtener cotización completa con artículos y servicios"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener cotización básica
+        cursor.execute("""
+            SELECT c.*, cl.nombre as cliente_nombre, cl.telefono as cliente_telefono,
+                   e.nombre as empleado_nombre
+            FROM cotizaciones c
+            LEFT JOIN clientes cl ON c.id_cliente = cl.id_cliente
+            LEFT JOIN empleados e ON c.id_empleado = e.id_empleado
+            WHERE c.id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        columns = [desc[0] for desc in cursor.description]
+        result = cursor.fetchone()
+        
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Cotización no encontrada'
+            }), 404
+        
+        cotizacion = dict(zip(columns, result))
+        
+        # Convertir tipos para JSON
+        if cotizacion['monto_total']:
+            cotizacion['monto_total'] = float(cotizacion['monto_total'])
+        if cotizacion['descuento']:
+            cotizacion['descuento'] = float(cotizacion['descuento'])
+        if cotizacion['fecha_cotizacion']:
+            cotizacion['fecha_cotizacion'] = cotizacion['fecha_cotizacion'].isoformat()
+        if cotizacion['fecha_evento']:
+            cotizacion['fecha_evento'] = cotizacion['fecha_evento'].isoformat()
+        
+        # Obtener artículos
+        cursor.execute("""
+            SELECT ca.*, a.codigo, a.nombre_articulo, a.descripcion
+            FROM cotizacion_articulos ca
+            JOIN articulos a ON ca.id_articulo = a.id_articulo
+            WHERE ca.id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        articulos_columns = [desc[0] for desc in cursor.description]
+        articulos_results = cursor.fetchall()
+        
+        articulos = []
+        for row in articulos_results:
+            articulo = dict(zip(articulos_columns, row))
+            if articulo['precio_unitario']:
+                articulo['precio_unitario'] = float(articulo['precio_unitario'])
+            if articulo['subtotal']:
+                articulo['subtotal'] = float(articulo['subtotal'])
+            articulos.append(articulo)
+        
+        # Obtener servicios
+        cursor.execute("""
+            SELECT cs.*, s.codigo, s.nombre_servicio, s.descripcion
+            FROM cotizacion_servicios cs
+            JOIN servicios s ON cs.id_servicio = s.id_servicio
+            WHERE cs.id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        servicios_columns = [desc[0] for desc in cursor.description]
+        servicios_results = cursor.fetchall()
+        
+        servicios = []
+        for row in servicios_results:
+            servicio = dict(zip(servicios_columns, row))
+            if servicio['precio_unitario']:
+                servicio['precio_unitario'] = float(servicio['precio_unitario'])
+            if servicio['subtotal']:
+                servicio['subtotal'] = float(servicio['subtotal'])
+            servicios.append(servicio)
+        
+        cotizacion['articulos'] = articulos
+        cotizacion['servicios'] = servicios
+        
+        return jsonify({
+            'success': True,
+            'cotizacion': cotizacion
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo cotización completa: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo cotización'
+        }), 500
+
+
+# ===============================================
+# ENDPOINTS ARTÍCULOS
+# ===============================================
+
+@app.route('/api/articulos', methods=['GET'])
+def get_articulos():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener parámetros de filtro
+        categoria = request.args.get('categoria')
+        busqueda = request.args.get('busqueda')
+        
+        query = """
+            SELECT a.id_articulo, a.codigo, a.nombre_articulo, a.descripcion,
+                   a.cantidad_total, a.cantidad_disponible, a.cantidad_dañada,
+                   a.precio_unitario, a.costo_reposicion, a.estado,
+                   c.nombre as categoria_nombre, s.nombre as subcategoria_nombre
+            FROM articulos a
+            LEFT JOIN categorias_articulos c ON a.id_categoria = c.id_categoria
+            LEFT JOIN subcategorias_articulos s ON a.id_subcategoria = s.id_subcategoria
+            WHERE a.estado = 'activo'
+        """
+        
+        params = []
+        
+        if categoria:
+            query += " AND a.id_categoria = %s"
+            params.append(categoria)
+            
+        if busqueda:
+            query += " AND (LOWER(a.nombre_articulo) LIKE LOWER(%s) OR LOWER(a.codigo) LIKE LOWER(%s))"
+            params.extend([f"%{busqueda}%", f"%{busqueda}%"])
+        
+        query += " ORDER BY c.nombre, s.nombre, a.nombre_articulo"
+        
+        cursor.execute(query, params)
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
+        
+        articulos = []
+        for row in results:
+            articulo = dict(zip(columns, row))
+            # Convertir Decimal a float para JSON
+            if articulo['precio_unitario']:
+                articulo['precio_unitario'] = float(articulo['precio_unitario'])
+            if articulo['costo_reposicion']:
+                articulo['costo_reposicion'] = float(articulo['costo_reposicion'])
+            articulos.append(articulo)
+        
+        return jsonify({
+            'success': True,
+            'articulos': articulos
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo artículos: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo artículos'
+        }), 500
+    
+@app.route('/api/articulos', methods=['POST'])
+def crear_articulo():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        
+        # Validar campos requeridos
+        required_fields = ['codigo', 'nombre_articulo', 'id_categoria', 'precio_unitario', 'cantidad_total']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({
+                    'success': False,
+                    'message': f'El campo {field} es requerido'
+                }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar si el código ya existe
+        cursor.execute(
+            "SELECT id_articulo FROM articulos WHERE codigo = %s",
+            (data['codigo'],)
+        )
+        
+        if cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': 'Ya existe un artículo con ese código'
+            }), 400
+        
+        # Insertar nuevo artículo
+        cursor.execute("""
+            INSERT INTO articulos (
+                codigo, nombre_articulo, descripcion, id_categoria,
+                cantidad_total, cantidad_disponible, cantidad_dañada,
+                precio_unitario, costo_reposicion, estado
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'activo')
+            RETURNING id_articulo
+        """, (
+            data['codigo'],
+            data['nombre_articulo'],
+            data.get('descripcion', ''),
+            data['id_categoria'],
+            data['cantidad_total'],
+            data['cantidad_total'],  # cantidad_disponible = cantidad_total inicialmente
+            0,  # cantidad_dañada = 0 inicialmente
+            data['precio_unitario'],
+            data.get('costo_reposicion', 0)
+        ))
+        
+        nuevo_id = cursor.fetchone()[0]
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Artículo creado correctamente',
+            'id_articulo': nuevo_id
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en crear_articulo: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error al crear artículo: {str(e)}'
+        }), 500
+
+@app.route('/api/articulos/<int:articulo_id>/movimiento', methods=['POST'])
+def registrar_movimiento_articulo(articulo_id):
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        
+        required_fields = ['tipo_movimiento', 'cantidad']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'message': f'El campo {field} es requerido'
+                }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener cantidad actual
+        cursor.execute("SELECT cantidad_disponible FROM articulos WHERE id_articulo = %s", (articulo_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Artículo no encontrado'
+            }), 404
+        
+        cantidad_anterior = result[0]
+        tipo_movimiento = data['tipo_movimiento']
+        cantidad = int(data['cantidad'])
+        
+        # Calcular nueva cantidad según el tipo de movimiento
+        if tipo_movimiento in ['entrada', 'recogida', 'reparado']:
+            cantidad_nueva = cantidad_anterior + cantidad
+        elif tipo_movimiento in ['salida', 'entrega', 'dañado', 'perdido']:
+            cantidad_nueva = cantidad_anterior - cantidad
+            if cantidad_nueva < 0:
+                return jsonify({
+                    'success': False,
+                    'message': 'No hay suficiente stock disponible'
+                }), 400
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Tipo de movimiento no válido'
+            }), 400
+        
+        # Registrar movimiento
+        cursor.execute("""
+            INSERT INTO movimientos_inventario (id_articulo, id_evento, tipo_movimiento, cantidad,
+                                              cantidad_anterior, cantidad_nueva, responsable, observaciones)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            articulo_id,
+            data.get('id_evento'),
+            tipo_movimiento,
+            cantidad,
+            cantidad_anterior,
+            cantidad_nueva,
+            data.get('responsable', session.get('user_name')),
+            data.get('observaciones', '')
+        ))
+        
+        # Actualizar cantidad en artículo
+        if tipo_movimiento == 'dañado':
+            cursor.execute("""
+                UPDATE articulos 
+                SET cantidad_disponible = %s, cantidad_dañada = cantidad_dañada + %s
+                WHERE id_articulo = %s
+            """, (cantidad_nueva, cantidad, articulo_id))
+        else:
+            cursor.execute("""
+                UPDATE articulos 
+                SET cantidad_disponible = %s
+                WHERE id_articulo = %s
+            """, (cantidad_nueva, articulo_id))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Movimiento registrado exitosamente',
+            'cantidad_anterior': cantidad_anterior,
+            'cantidad_nueva': cantidad_nueva
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error registrando movimiento: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error registrando movimiento'
+        }), 500
+
+# ===============================================
+# ENDPOINTS PERFIL
+# ===============================================
+
+@app.route('/api/perfil', methods=['GET'])
+def get_perfil():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        user_id = get_user_id()
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT u.full_name, u.email, u.username, u.user_type,
+                   e.nombre, e.telefono, e.direccion, e.cargo, e.fecha_ingreso
+            FROM users u
+            LEFT JOIN empleados e ON u.id = e.user_id
+            WHERE u.id = %s
+        """, (user_id,))
+        
+        columns = [desc[0] for desc in cursor.description]
+        result = cursor.fetchone()
+        
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Usuario no encontrado'
+            }), 404
+        
+        perfil = dict(zip(columns, result))
+        
+        # Convertir fecha para JSON
+        if perfil['fecha_ingreso']:
+            perfil['fecha_ingreso'] = perfil['fecha_ingreso'].isoformat()
+        
+        return jsonify({
+            'success': True,
+            'perfil': perfil
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo perfil: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo perfil'
+        }), 500
+
+@app.route('/api/perfil', methods=['PUT'])
+def update_perfil():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        user_id = get_user_id()
+        cursor = db.session.connection().connection.cursor()
+        
+        # Actualizar en tabla empleados
+        if any(field in data for field in ['telefono', 'direccion']):
+            update_fields = []
+            params = []
+            
+            if 'telefono' in data:
+                update_fields.append("telefono = %s")
+                params.append(data['telefono'])
                 
-                <div class="form-group">
-                    <label>Artículo:</label>
-                    <p id="problema-nombre-articulo" style="font-weight: 600; color: #1f2937;"></p>
-                </div>
+            if 'direccion' in data:
+                update_fields.append("direccion = %s")
+                params.append(data['direccion'])
+            
+            params.append(user_id)
+            
+            query = f"UPDATE empleados SET {', '.join(update_fields)} WHERE user_id = %s"
+            cursor.execute(query, params)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Perfil actualizado exitosamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error actualizando perfil: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error actualizando perfil'
+        }), 500
 
-                <div class="form-group">
-                    <label for="problema-tipo">Tipo de Problema *</label>
-                    <select id="problema-tipo" class="form-control" required>
-                        <option value="">Seleccionar...</option>
-                        <option value="roto">Roto</option>
-                        <option value="perdido">Perdido</option>
-                    </select>
-                </div>
+# ===============================================
+# ENDPOINTS REPORTES PDF
+# ===============================================
 
-                <div class="form-group">
-                    <label for="problema-descripcion">Descripción del Problema *</label>
-                    <textarea id="problema-descripcion" class="form-control" rows="4" 
-                        placeholder="Describe detalladamente el problema encontrado..." required></textarea>
-                </div>
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import Image as RLImage
+import os
 
-                <div class="form-group">
-                    <label for="problema-cantidad-afectada">Cantidad Afectada</label>
-                    <input type="number" id="problema-cantidad-afectada" class="form-control" min="1" value="1">
-                </div>
+# ===============================================
+# ENDPOINTS DE REPORTES PDF MEJORADOS
+# ===============================================
 
-                <div class="form-group">
-                    <label for="problema-costo-estimado">Costo de Reparación/Reposición (Q)</label>
-                    <input type="number" id="problema-costo-estimado" class="form-control" step="0.01" min="0" placeholder="0.00">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('problemaArticuloModal')">Cancelar</button>
-                <button type="button" class="btn btn-danger" onclick="guardarProblemaArticulo()">
-                    <i class="fas fa-exclamation-triangle"></i> Registrar Problema
-                </button>
-            </div>
-        </div>
-    </div>
-     
-    <!-- Modal Nuevo Evento -->
-    <div id="eventoModal" class="modal">
-        <div class="modal-content" style="max-width: 1200px; width: 95%;">
-            <div class="modal-header">
-            <input type="hidden" id="evento-modo" value="agregar">
-            <input type="hidden" id="evento-id-actual" value="">
-                <h2>Nuevo Evento</h2>
-                <span class="close" onclick="closeModal('eventoModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="evento-form-container">
-                    <!-- Sección 1: Datos generales -->
-                    <div class="form-section">
-                        <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
-                        <form id="evento-form">
-                            <!-- Toggle para cliente nuevo o existente -->
-                            <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                                <div style="display: flex; gap: 2rem; align-items: center;">
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
-                                        <input type="radio" name="cliente-tipo" value="existente" checked onchange="toggleClienteForm('existente')">
-                                        <span>Seleccionar cliente existente</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
-                                        <input type="radio" name="cliente-tipo" value="nuevo" onchange="toggleClienteForm('nuevo')">
-                                        <span>Crear nuevo cliente</span>
-                                    </label>
-                                </div>
-                            </div>
+@app.route('/api/reportes/eventos/pdf', methods=['GET'])
+def generar_reporte_eventos_pdf():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        # Obtener parámetros
+        fecha_inicio = request.args.get('fecha_inicio', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
+        fecha_fin = request.args.get('fecha_fin', datetime.now().strftime('%Y-%m-%d'))
+        estado = request.args.get('estado')
+        cliente_id = request.args.get('cliente_id')
+        detallado = request.args.get('detallado') == 'true'
+        
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Query para obtener eventos
+        query = """
+            SELECT e.numero_evento, e.fecha_evento, e.hora_inicio, e.hora_fin,
+                   e.lugar_evento, e.estado, e.monto_total, e.monto_pagado,
+                   e.saldo_pendiente, e.numero_invitados,
+                   c.nombre as cliente_nombre, c.telefono as cliente_telefono,
+                   emp.nombre as empleado_nombre
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            LEFT JOIN empleados emp ON e.id_empleado_asignado = emp.id_empleado
+            WHERE e.fecha_evento BETWEEN %s AND %s
+        """
+        
+        params = [fecha_inicio, fecha_fin]
+        
+        if empleado_id:
+            query += " AND (e.id_empleado_asignado = %s OR e.id_empleado_asignado IS NULL)"
+            params.append(empleado_id)
+            
+        if estado:
+            query += " AND e.estado = %s"
+            params.append(estado)
+            
+        if cliente_id:
+            query += " AND e.id_cliente = %s"
+            params.append(int(cliente_id))
+        
+        query += " ORDER BY e.fecha_evento DESC, e.created_at DESC"
+        
+        cursor.execute(query, params)
+        eventos = cursor.fetchall()
+        
+        # Crear PDF
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, bottomMargin=0.5*inch,
+                               leftMargin=0.75*inch, rightMargin=0.75*inch)
+        story = []
+        
+        # Estilos
+        styles = getSampleStyleSheet()
+        
+        # Header con logo
+        logo_path = 'static/alquifiestas.png'
+        if os.path.exists(logo_path):
+            logo = RLImage(logo_path, width=1.2*inch, height=1.2*inch)
+            
+            header_title = Paragraph(
+                "<b>ALQUIFIESTAS LA CALZADA</b><br/>"
+                "<font size=10>Teléfono: (502) 4211-6543 | Email: multiservicioslacalzada@gmail.com/font><br/>"
+                "<font size=9>Ciudad de Guatemala</font>",
+                ParagraphStyle('HeaderTitle', parent=styles['Normal'], fontSize=14, 
+                             textColor=colors.HexColor('#2563EB'), alignment=2, spaceAfter=10)
+            )
+            
+            header_data = [[logo, header_title]]
+            header_table = Table(header_data, colWidths=[1.5*inch, 5*inch])
+            header_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ]))
+            story.append(header_table)
+        else:
+            company_name = Paragraph(
+                "<b>ALQUIFIESTAS LA CALZADA</b>",
+                ParagraphStyle('CompanyName', parent=styles['Heading1'], fontSize=20,
+                             textColor=colors.HexColor('#2563EB'), alignment=1)
+            )
+            story.append(company_name)
+        
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Línea separadora
+        line_table = Table([['', '']], colWidths=[6.5*inch, 0*inch])
+        line_table.setStyle(TableStyle([
+            ('LINEABOVE', (0, 0), (-1, 0), 2, colors.HexColor('#2563EB')),
+        ]))
+        story.append(line_table)
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Título del reporte
+        title_style = ParagraphStyle(
+            'ReportTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            textColor=colors.HexColor('#1D4ED8'),
+            spaceAfter=20,
+            alignment=1
+        )
+        title = Paragraph("<b>REPORTE DE EVENTOS</b>", title_style)
+        story.append(title)
+        
+        # Información del reporte
+        fecha_actual = datetime.now().strftime("%d/%m/%Y %H:%M")
+        
+        # Obtener nombre del cliente si se filtró
+        cliente_nombre = "TODOS"
+        if cliente_id:
+            cursor.execute("SELECT nombre FROM clientes WHERE id_cliente = %s", (int(cliente_id),))
+            cliente_result = cursor.fetchone()
+            if cliente_result:
+                cliente_nombre = cliente_result[0]
+        
+        info_data = [
+            [Paragraph('<b>Período:</b>', styles['Normal']), 
+             f"{fecha_inicio} al {fecha_fin}",
+             Paragraph('<b>Generado:</b>', styles['Normal']), 
+             fecha_actual],
+            [Paragraph('<b>Total de eventos:</b>', styles['Normal']), 
+             str(len(eventos)),
+             Paragraph('<b>Estado:</b>', styles['Normal']), 
+             estado.upper() if estado else 'TODOS'],
+            [Paragraph('<b>Cliente:</b>', styles['Normal']),
+             cliente_nombre,
+             Paragraph('<b>Detallado:</b>', styles['Normal']),
+             'SÍ' if detallado else 'NO']
+        ]
+        
+        info_table = Table(info_data, colWidths=[1.5*inch, 2*inch, 1.5*inch, 1.5*inch])
+        info_table.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 0.3*inch))
+        
+        if eventos and len(eventos) > 0:
+            # Estadísticas resumidas
+            total_monto = sum(float(e[6]) if e[6] else 0 for e in eventos)
+            total_pagado = sum(float(e[7]) if e[7] else 0 for e in eventos)
+            total_pendiente = sum(float(e[8]) if e[8] else 0 for e in eventos)
+            
+            stats_data = [
+                ['ESTADÍSTICAS DEL PERÍODO'],
+                [f'Ingresos Totales: Q{total_monto:.2f}'],
+                [f'Monto Pagado: Q{total_pagado:.2f}'],
+                [f'Saldo Pendiente: Q{total_pendiente:.2f}']
+            ]
+            
+            stats_table = Table(stats_data, colWidths=[6.5*inch])
+            stats_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2563EB')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONT', (0, 0), (-1, 0), 'Helvetica-Bold', 11),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#EFF6FF')),
+                ('TOPPADDING', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#2563EB')),
+            ]))
+            story.append(stats_table)
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Crear tabla de eventos
+            if detallado:
+                # Modo detallado con más información
+                data = [['Número', 'Cliente', 'Fecha', 'Horario', 'Lugar', 'Invitados', 'Estado', 'Monto', 'Pagado', 'Pendiente']]
+                
+                for evento in eventos:
+                    fecha_evento = evento[1].strftime('%d/%m/%Y') if evento[1] else ''
+                    horario = f"{str(evento[2])[:5] if evento[2] else '--:--'} - {str(evento[3])[:5] if evento[3] else '--:--'}"
+                    monto_total = float(evento[6]) if evento[6] else 0
+                    monto_pagado = float(evento[7]) if evento[7] else 0
+                    saldo_pendiente = float(evento[8]) if evento[8] else 0
+                    
+                    data.append([
+                        evento[0] or '',
+                        evento[10] or '',
+                        fecha_evento,
+                        horario,
+                        evento[4][:20] + '...' if evento[4] and len(evento[4]) > 20 else (evento[4] or ''),
+                        str(evento[9]) if evento[9] else '-',
+                        evento[5] or '',
+                        f"Q{monto_total:.2f}",
+                        f"Q{monto_pagado:.2f}",
+                        f"Q{saldo_pendiente:.2f}"
+                    ])
+                
+                table = Table(data, colWidths=[0.8*inch, 1*inch, 0.8*inch, 0.8*inch, 1.2*inch, 0.6*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch])
+            else:
+                # Modo resumido
+                data = [['Número', 'Cliente', 'Fecha', 'Lugar', 'Estado', 'Monto Total', 'Pagado']]
+                
+                for evento in eventos:
+                    monto_total = float(evento[6]) if evento[6] else 0
+                    monto_pagado = float(evento[7]) if evento[7] else 0
+                    
+                    fecha_evento = evento[1].strftime('%d/%m/%Y') if evento[1] else ''
+                    
+                    data.append([
+                        evento[0] or '',
+                        evento[10] or '',
+                        fecha_evento,
+                        evento[4] or '',
+                        evento[5] or '',
+                        f"Q{monto_total:.2f}",
+                        f"Q{monto_pagado:.2f}"
+                    ])
+                
+                table = Table(data, colWidths=[1*inch, 1.3*inch, 0.9*inch, 1.3*inch, 0.9*inch, 1*inch, 1*inch])
+            
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2563EB')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('TOPPADDING', (0, 0), (-1, 0), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('FONTSIZE', (0, 1), (-1, -1), 7),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
+            ]))
+            
+            story.append(table)
+            
+            # Totales finales
+            story.append(Spacer(1, 0.2*inch))
+            totales_data = [
+                ['', '', '', '', Paragraph('<b>TOTALES:</b>', styles['Normal']), 
+                 Paragraph(f"<b>Q{total_monto:.2f}</b>", styles['Normal']), 
+                 Paragraph(f"<b>Q{total_pagado:.2f}</b>", styles['Normal'])]
+            ]
+            
+            if detallado:
+                totales_data = [[
+                    '', '', '', '', '', '', '',
+                    Paragraph(f"<b>Q{total_monto:.2f}</b>", styles['Normal']),
+                    Paragraph(f"<b>Q{total_pagado:.2f}</b>", styles['Normal']),
+                    Paragraph(f"<b>Q{total_pendiente:.2f}</b>", styles['Normal'])
+                ]]
+            
+            totales_table = Table(totales_data, colWidths=[1*inch, 1.3*inch, 0.9*inch, 1.3*inch, 0.9*inch, 1*inch, 1*inch] if not detallado else [0.8*inch, 1*inch, 0.8*inch, 0.8*inch, 1.2*inch, 0.6*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch])
+            totales_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#E5E7EB')),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ]))
+            story.append(totales_table)
+            
+        else:
+            no_data = Paragraph(
+                "<i>No se encontraron eventos en el período especificado con los filtros aplicados.</i>",
+                ParagraphStyle('NoData', parent=styles['Normal'], alignment=1, textColor=colors.grey)
+            )
+            story.append(no_data)
+        
+        # Footer
+        story.append(Spacer(1, 0.3*inch))
+        footer = Paragraph(
+            f"<i>Reporte generado el {fecha_actual}</i>",
+            ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, 
+                         alignment=1, textColor=colors.grey)
+        )
+        story.append(footer)
+        
+        # Generar PDF
+        doc.build(story)
+        buffer.seek(0)
+        
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=f'reporte_eventos_{fecha_inicio}_al_{fecha_fin}.pdf',
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        print(f"Error generando reporte PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error generando reporte PDF: {str(e)}'
+        }), 500
 
-                            <!-- Cliente existente -->
-                            <div id="cliente-existente-section">
-                                <div class="form-group">
-                                    <label>Cliente <span class="required">*</span></label>
-                                    <select class="form-control" id="evento-cliente">
-                                        <option value="">Seleccionar cliente...</option>
-                                    </select>
-                                </div>
-                            </div>
+@app.route('/api/reportes/inventario/pdf', methods=['GET'])
+def generar_reporte_inventario_pdf():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        # Obtener parámetros
+        categoria = request.args.get('categoria')
+        stock_bajo = request.args.get('stock_bajo') == 'true'
+        valorizacion = request.args.get('valorizacion') == 'true'
+        daniados = request.args.get('daniados') == 'true'
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener inventario actual
+        query = """
+            SELECT a.codigo, a.nombre_articulo, a.cantidad_total, a.cantidad_disponible,
+                   a.cantidad_dañada, a.precio_unitario, a.costo_reposicion,
+                   c.nombre as categoria_nombre
+            FROM articulos a
+            LEFT JOIN categorias_articulos c ON a.id_categoria = c.id_categoria
+            WHERE a.estado = 'activo'
+        """
+        
+        params = []
+        
+        if categoria:
+            query += " AND a.id_categoria = %s"
+            params.append(int(categoria))
+        
+        query += " ORDER BY c.nombre, a.nombre_articulo"
+        
+        cursor.execute(query, params)
+        articulos = cursor.fetchall()
+        
+        # Crear PDF
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, bottomMargin=0.5*inch,
+                               leftMargin=0.75*inch, rightMargin=0.75*inch)
+        story = []
+        
+        # Estilos
+        styles = getSampleStyleSheet()
+        
+        # Header con logo
+        logo_path = 'static/alquifiestas.png'
+        if os.path.exists(logo_path):
+            logo = RLImage(logo_path, width=1.2*inch, height=1.2*inch)
+            
+            header_title = Paragraph(
+                "<b>ALQUIFIESTAS LA CALZADA</b><br/>"
+                "<font size=10>Teléfono: (502) 4211-6543 | Email: multiservicioslacalzada@gmail.com</font><br/>"
+                "<font size=9>Ciudad de Guatemala</font>",
+                ParagraphStyle('HeaderTitle', parent=styles['Normal'], fontSize=14, 
+                             textColor=colors.HexColor('#2563EB'), alignment=2, spaceAfter=10)
+            )
+            
+            header_data = [[logo, header_title]]
+            header_table = Table(header_data, colWidths=[1.5*inch, 5*inch])
+            header_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ]))
+            story.append(header_table)
+        else:
+            company_name = Paragraph(
+                "<b>ALQUIFIESTAS LA CALZADA</b>",
+                ParagraphStyle('CompanyName', parent=styles['Heading1'], fontSize=20,
+                             textColor=colors.HexColor('#2563EB'), alignment=1)
+            )
+            story.append(company_name)
+        
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Línea separadora
+        line_table = Table([['', '']], colWidths=[6.5*inch, 0*inch])
+        line_table.setStyle(TableStyle([
+            ('LINEABOVE', (0, 0), (-1, 0), 2, colors.HexColor('#10B981')),
+        ]))
+        story.append(line_table)
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Título del reporte
+        title = Paragraph(
+            "<b>REPORTE DE INVENTARIO</b>",
+            ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontSize=18,
+                         textColor=colors.HexColor('#059669'), spaceAfter=20, alignment=1)
+        )
+        story.append(title)
+        
+        # Información del reporte
+        fecha_actual = datetime.now().strftime("%d/%m/%Y %H:%M")
+        
+        # Obtener nombre de categoría si se filtró
+        categoria_nombre = "TODAS"
+        if categoria:
+            cursor.execute("SELECT nombre FROM categorias_articulos WHERE id_categoria = %s", (int(categoria),))
+            cat_result = cursor.fetchone()
+            if cat_result:
+                categoria_nombre = cat_result[0]
+        
+        info_data = [
+            [Paragraph('<b>Generado:</b>', styles['Normal']), fecha_actual,
+             Paragraph('<b>Total de artículos:</b>', styles['Normal']), str(len(articulos))],
+            [Paragraph('<b>Categoría:</b>', styles['Normal']), categoria_nombre,
+             Paragraph('<b>Incluye dañados:</b>', styles['Normal']), 'SÍ' if daniados else 'NO']
+        ]
+        
+        info_table = Table(info_data, colWidths=[1.5*inch, 2*inch, 1.8*inch, 1.2*inch])
+        info_table.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 0.3*inch))
+        
+        if articulos and len(articulos) > 0:
+            # Estadísticas
+            total_articulos = len(articulos)
+            stock_total = sum(a[2] or 0 for a in articulos)
+            stock_disponible = sum(a[3] or 0 for a in articulos)
+            articulos_bajo_stock = sum(1 for a in articulos if (a[3] or 0) < 10)
+            valor_total = sum((float(a[5]) if a[5] else 0) * (a[2] or 0) for a in articulos)
+            
+            stats_data = [
+                ['RESUMEN DEL INVENTARIO'],
+                [f'Total de Artículos: {total_articulos}'],
+                [f'Stock Total: {stock_total} unidades'],
+                [f'Stock Disponible: {stock_disponible} unidades'],
+                [f'Artículos con Stock Bajo: {articulos_bajo_stock}'],
+            ]
+            
+            if valorizacion:
+                stats_data.append([f'Valorización Total: Q{valor_total:,.2f}'])
+            
+            stats_table = Table(stats_data, colWidths=[6.5*inch])
+            stats_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#10B981')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONT', (0, 0), (-1, 0), 'Helvetica-Bold', 11),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ECFDF5')),
+                ('TOPPADDING', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#10B981')),
+            ]))
+            story.append(stats_table)
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Crear tabla
+            if valorizacion:
+                data = [['Código', 'Artículo', 'Categoría', 'Stock Total', 'Disponible', 'Dañados', 'Precio Unit.', 'Valor Total']]
+            else:
+                data = [['Código', 'Artículo', 'Categoría', 'Stock Total', 'Disponible', 'Dañados', 'Precio Unit.']]
+            
+            for articulo in articulos:
+                precio = float(articulo[5]) if articulo[5] else 0
+                cantidad_total = articulo[2] or 0
+                cantidad_disponible = articulo[3] or 0
+                cantidad_danada = articulo[4] or 0
+                valor_total_item = precio * cantidad_total
+                
+                # Marcar en rojo si stock bajo
+                codigo_cell = articulo[0] or ''
+                nombre_cell = articulo[1] or ''
+                
+                if stock_bajo and cantidad_disponible < 10:
+                    # Marcar con color de alerta
+                    row_data = [
+                        codigo_cell,
+                        nombre_cell,
+                        articulo[7] or '',
+                        str(cantidad_total),
+                        str(cantidad_disponible),
+                        str(cantidad_danada) if daniados else '-',
+                        f"Q{precio:.2f}"
+                    ]
+                    
+                    if valorizacion:
+                        row_data.append(f"Q{valor_total_item:.2f}")
+                    
+                    data.append(row_data)
+                else:
+                    row_data = [
+                        codigo_cell,
+                        nombre_cell,
+                        articulo[7] or '',
+                        str(cantidad_total),
+                        str(cantidad_disponible),
+                        str(cantidad_danada) if daniados else '-',
+                        f"Q{precio:.2f}"
+                    ]
+                    
+                    if valorizacion:
+                        row_data.append(f"Q{valor_total_item:.2f}")
+                    
+                    data.append(row_data)
+            
+            # Fila de total
+            if valorizacion:
+                data.append(['', '', '', '', '', 
+                            Paragraph('<b>VALOR TOTAL:</b>', styles['Normal']), 
+                            '',
+                            Paragraph(f"<b>Q{valor_total:,.2f}</b>", styles['Normal'])])
+                
+                col_widths = [0.7*inch, 1.8*inch, 1*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.9*inch]
+            else:
+                col_widths = [0.8*inch, 2*inch, 1.1*inch, 0.8*inch, 0.8*inch, 0.7*inch, 0.9*inch]
+            
+            table = Table(data, colWidths=col_widths)
+            
+            # Estilos de tabla con filas alternadas
+            table_style = [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#10B981')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('TOPPADDING', (0, 0), (-1, 0), 10),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ]
+            
+            # Aplicar color de fondo alternado
+            for i in range(1, len(data) - 1):
+                if i % 2 == 0:
+                    table_style.append(('BACKGROUND', (0, i), (-1, i), colors.lightgreen))
+                else:
+                    table_style.append(('BACKGROUND', (0, i), (-1, i), colors.white))
+                
+                # Resaltar stock bajo en rojo
+                if stock_bajo:
+                    try:
+                        disponible = int(data[i][4])
+                        if disponible < 10:
+                            table_style.append(('BACKGROUND', (0, i), (-1, i), colors.HexColor('#FEE2E2')))
+                            table_style.append(('TEXTCOLOR', (4, i), (4, i), colors.HexColor('#DC2626')))
+                            table_style.append(('FONTNAME', (4, i), (4, i), 'Helvetica-Bold'))
+                    except:
+                        pass
+            
+            # Estilo para fila de total
+            table_style.append(('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#D1FAE5')))
+            table_style.append(('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'))
+            
+            table.setStyle(TableStyle(table_style))
+            
+            story.append(table)
+            
+            # Leyenda de stock bajo
+            if stock_bajo:
+                story.append(Spacer(1, 0.2*inch))
+                leyenda = Paragraph(
+                    "<font color='#DC2626'><b>⚠ Artículos marcados en rojo tienen stock bajo (menos de 10 unidades)</b></font>",
+                    ParagraphStyle('Leyenda', parent=styles['Normal'], fontSize=9, alignment=1)
+                )
+                story.append(leyenda)
+                
+        else:
+            no_data = Paragraph(
+                "<i>No se encontraron artículos en el inventario.</i>",
+                ParagraphStyle('NoData', parent=styles['Normal'], alignment=1, textColor=colors.grey)
+            )
+            story.append(no_data)
+        
+        # Footer
+        story.append(Spacer(1, 0.3*inch))
+        footer = Paragraph(
+            f"<i>Reporte generado el {fecha_actual}</i>",
+            ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, 
+                         alignment=1, textColor=colors.grey)
+        )
+        story.append(footer)
+        
+        # Generar PDF
+        doc.build(story)
+        buffer.seek(0)
+        
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=f'reporte_inventario_{datetime.now().strftime("%Y%m%d")}.pdf',
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        print(f"Error generando reporte de inventario: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error generando reporte de inventario: {str(e)}'
+        }), 500
 
-                            <!-- Nuevo cliente -->
-                            <div id="cliente-nuevo-section" class="hidden">
-                                <div class="form-grid">
-                                    <div class="form-group">
-                                        <label>Nombre del Cliente <span class="required">*</span></label>
-                                        <input type="text" class="form-control" id="nuevo-cliente-nombre" placeholder="Nombre completo">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Teléfono</label>
-                                        <input type="text" class="form-control" id="nuevo-cliente-telefono" placeholder="Ej: 1234-5678">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Dirección</label>
-                                    <textarea class="form-control" id="nuevo-cliente-direccion" rows="2" placeholder="Dirección del cliente"></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label>Notas sobre el cliente</label>
-                                    <textarea class="form-control" id="nuevo-cliente-notas" rows="2" placeholder="Información adicional"></textarea>
-                                </div>
-                            </div>
+@app.route('/api/reportes/problemas/pdf', methods=['GET'])
+def generar_reporte_problemas_pdf():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        # Obtener parámetros
+        fecha_inicio = request.args.get('fecha_inicio', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
+        fecha_fin = request.args.get('fecha_fin', datetime.now().strftime('%Y-%m-%d'))
+        tipo = request.args.get('tipo')
+        responsable = request.args.get('responsable')
+        graficos = request.args.get('graficos') == 'true'
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Query para obtener problemas
+        query = """
+            SELECT rp.id_reporte, rp.tipo_problema, rp.descripcion_problema,
+                   rp.costo_problema, rp.fecha_reporte, rp.responsable,
+                   a.codigo as articulo_codigo, a.nombre_articulo,
+                   e.numero_evento, c.nombre as cliente_nombre
+            FROM reportes_problemas rp
+            JOIN articulos a ON rp.id_articulo = a.id_articulo
+            JOIN eventos e ON rp.id_evento = e.id_evento
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            WHERE DATE(rp.fecha_reporte) BETWEEN %s AND %s
+        """
+        
+        params = [fecha_inicio, fecha_fin]
+        
+        if tipo:
+            query += " AND rp.tipo_problema = %s"
+            params.append(tipo)
+            
+        if responsable:
+            query += " AND rp.responsable = %s"
+            params.append(responsable)
+        
+        query += " ORDER BY rp.fecha_reporte DESC"
+        
+        cursor.execute(query, params)
+        problemas = cursor.fetchall()
+        
+        # Crear PDF
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, bottomMargin=0.5*inch,
+                               leftMargin=0.75*inch, rightMargin=0.75*inch)
+        story = []
+        
+        # Estilos
+        styles = getSampleStyleSheet()
+        
+        # Header con logo
+        logo_path = 'static/alquifiestas.png'
+        if os.path.exists(logo_path):
+            logo = RLImage(logo_path, width=1.2*inch, height=1.2*inch)
+            
+            header_title = Paragraph(
+                "<b>ALQUIFIESTAS LA CALZADA</b><br/>"
+                "<font size=10>Teléfono: (502) 4211-6543 | Email: multiservicioslacalzada@gmail.com</font><br/>"
+                "<font size=9>Ciudad de Guatemala</font>",
+                ParagraphStyle('HeaderTitle', parent=styles['Normal'], fontSize=14, 
+                             textColor=colors.HexColor('#2563EB'), alignment=2, spaceAfter=10)
+            )
+            
+            header_data = [[logo, header_title]]
+            header_table = Table(header_data, colWidths=[1.5*inch, 5*inch])
+            header_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ]))
+            story.append(header_table)
+        else:
+            company_name = Paragraph(
+                "<b>ALQUIFIESTAS LA CALZADA</b>",
+                ParagraphStyle('CompanyName', parent=styles['Heading1'], fontSize=20,
+                             textColor=colors.HexColor('#2563EB'), alignment=1)
+            )
+            story.append(company_name)
+        
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Línea separadora
+        line_table = Table([['', '']], colWidths=[6.5*inch, 0*inch])
+        line_table.setStyle(TableStyle([
+            ('LINEABOVE', (0, 0), (-1, 0), 2, colors.HexColor('#EF4444')),
+        ]))
+        story.append(line_table)
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Título del reporte
+        title = Paragraph(
+            "<b>REPORTE DE PROBLEMAS</b>",
+            ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontSize=18,
+                         textColor=colors.HexColor('#DC2626'), spaceAfter=20, alignment=1)
+        )
+        story.append(title)
+        
+        # Información del reporte
+        fecha_actual = datetime.now().strftime("%d/%m/%Y %H:%M")
+        
+        info_data = [
+            [Paragraph('<b>Período:</b>', styles['Normal']), 
+             f"{fecha_inicio} al {fecha_fin}",
+             Paragraph('<b>Generado:</b>', styles['Normal']), 
+             fecha_actual],
+            [Paragraph('<b>Total problemas:</b>', styles['Normal']), 
+             str(len(problemas)),
+             Paragraph('<b>Tipo:</b>', styles['Normal']), 
+             tipo.upper() if tipo else 'TODOS'],
+            [Paragraph('<b>Responsable:</b>', styles['Normal']),
+             responsable if responsable else 'TODOS',
+             '', '']
+        ]
+        
+        info_table = Table(info_data, colWidths=[1.5*inch, 2*inch, 1.5*inch, 1.5*inch])
+        info_table.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 0.3*inch))
+        
+        if problemas and len(problemas) > 0:
+            # Estadísticas
+            total_costo = sum(float(p[3]) if p[3] else 0 for p in problemas)
+            problemas_rotos = sum(1 for p in problemas if p[1] == 'roto')
+            problemas_perdidos = sum(1 for p in problemas if p[1] == 'perdido')
+            
+            # Costos por responsable
+            costos_responsable = {}
+            for p in problemas:
+                resp = p[5] or 'Desconocido'
+                costo = float(p[3]) if p[3] else 0
+                costos_responsable[resp] = costos_responsable.get(resp, 0) + costo
+            
+            stats_data = [
+                ['RESUMEN DE PROBLEMAS'],
+                [f'Total de Problemas: {len(problemas)}'],
+                [f'Problemas por Rotura: {problemas_rotos}'],
+                [f'Problemas por Pérdida: {problemas_perdidos}'],
+                [f'Costo Total: Q{total_costo:,.2f}'],
+            ]
+            
+            stats_table = Table(stats_data, colWidths=[6.5*inch])
+            stats_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EF4444')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONT', (0, 0), (-1, 0), 'Helvetica-Bold', 11),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#FEE2E2')),
+                ('TOPPADDING', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#EF4444')),
+            ]))
+            story.append(stats_table)
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Tabla de costos por responsable
+            if graficos and len(costos_responsable) > 0:
+                story.append(Paragraph("<b>COSTOS POR RESPONSABLE</b>", styles['Heading3']))
+                story.append(Spacer(1, 0.1*inch))
+                
+                resp_data = [['Responsable', 'Cantidad', 'Costo Total']]
+                for resp, costo in sorted(costos_responsable.items(), key=lambda x: x[1], reverse=True):
+                    cantidad = sum(1 for p in problemas if (p[5] or 'Desconocido') == resp)
+                    resp_data.append([resp, str(cantidad), f"Q{costo:,.2f}"])
+                
+                resp_table = Table(resp_data, colWidths=[3*inch, 1.5*inch, 2*inch])
+                resp_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#DC2626')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#FEE2E2')),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ]))
+                story.append(resp_table)
+                story.append(Spacer(1, 0.3*inch))
+            
+            # Crear tabla detallada
+            story.append(Paragraph("<b>DETALLE DE PROBLEMAS</b>", styles['Heading3']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            data = [['Fecha', 'Evento', 'Artículo', 'Tipo', 'Responsable', 'Costo']]
+            
+            for problema in problemas:
+                fecha = problema[4].strftime('%d/%m/%Y') if problema[4] else ''
+                
+                data.append([
+                    fecha,
+                    problema[8] or '',
+                    f"{problema[6]} - {problema[7]}"[:30],
+                    problema[1].upper() if problema[1] else '',
+                    problema[5] or 'Desconocido',
+                    f"Q{float(problema[3]):,.2f}" if problema[3] else 'Q0.00'
+                ])
+            
+            # Fila de total
+            data.append(['', '', '', '', 
+                        Paragraph('<b>TOTAL:</b>', styles['Normal']), 
+                        Paragraph(f"<b>Q{total_costo:,.2f}</b>", styles['Normal'])])
+            
+            table = Table(data, colWidths=[0.9*inch, 1.2*inch, 2*inch, 0.8*inch, 1*inch, 1*inch])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#DC2626')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('TOPPADDING', (0, 0), (-1, 0), 10),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#FEE2E2')]),
+                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#FECACA')),
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ]))
+            
+            story.append(table)
+            
+        else:
+            no_data = Paragraph(
+                "<i>No se encontraron problemas reportados en el período especificado con los filtros aplicados.</i>",
+                ParagraphStyle('NoData', parent=styles['Normal'], alignment=1, textColor=colors.grey)
+            )
+            story.append(no_data)
+        
+        # Footer
+        story.append(Spacer(1, 0.3*inch))
+        footer = Paragraph(
+            f"<i>Reporte generado el {fecha_actual}</i>",
+            ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, 
+                         alignment=1, textColor=colors.grey)
+        )
+        story.append(footer)
+        
+        # Generar PDF
+        doc.build(story)
+        buffer.seek(0)
+        
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=f'reporte_problemas_{fecha_inicio}_al_{fecha_fin}.pdf',
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        print(f"Error generando reporte de problemas: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error generando reporte de problemas: {str(e)}'
+        }), 500
 
-                            <!-- Resto del formulario de evento -->
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label>Fecha del Evento <span class="required">*</span></label>
-                                    <input type="date" class="form-control" id="evento-fecha" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>Hora Inicio</label>
-                                    <input type="time" class="form-control" id="evento-hora-inicio">
-                                </div>
-                                <div class="form-group">
-                                    <label>Hora Fin</label>
-                                    <input type="time" class="form-control" id="evento-hora-fin">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Lugar del Evento</label>
-                                <input type="text" class="form-control" id="evento-lugar" placeholder="Dirección del evento">
-                            </div>
-                            <div class="form-group">
-                                <label>Número de Invitados</label>
-                                <input type="number" class="form-control" id="evento-invitados" min="1" placeholder="Ej: 80">
-                            </div>
-                            <div class="form-group">
-                                <label>Notas</label>
-                                <textarea class="form-control" id="evento-notas" rows="3" placeholder="Notas adicionales..."></textarea>
-                            </div>
-                        </form>
-                    </div>
 
-                    <!-- Sección 2: Artículos y Servicios -->
-                    <div class="form-section">
-                        <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
+# ===============================================
+# REPORTES DE PROBLEMAS
+# ===============================================
+
+@app.route('/api/eventos/<int:evento_id>/articulos-con-problemas', methods=['GET'])
+def obtener_articulos_con_problemas(evento_id):
+    """Obtener TODOS los artículos del evento que tienen estado 'con_problemas'"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                ea.id_detalle,
+                ea.id_articulo,
+                a.codigo,
+                a.nombre_articulo,
+                ea.cantidad_solicitada,
+                ea.precio_unitario as precio_alquiler,
+                ea.estado_articulo
+            FROM evento_articulos ea
+            JOIN articulos a ON ea.id_articulo = a.id_articulo
+            WHERE ea.id_evento = %s AND ea.estado_articulo = 'con_problemas'
+            ORDER BY a.codigo
+        """, (evento_id,))
+        
+        articulos = []
+        for row in cursor.fetchall():
+            articulos.append({
+                'id_detalle': row[0],
+                'id_articulo': row[1],
+                'codigo': row[2],
+                'nombre_articulo': row[3],
+                'cantidad': row[4],
+                'precio_unitario': float(row[5]),  # Usar precio de alquiler
+                'estado': row[6]
+            })
+        
+        return jsonify({
+            'success': True,
+            'articulos': articulos
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo artículos con problemas: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/eventos/<int:evento_id>/reportar-problemas-multiples', methods=['POST'])
+def reportar_problemas_multiples(evento_id):
+    """Crear reportes para múltiples artículos con problemas"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        problemas = data.get('problemas', [])
+        
+        if not problemas:
+            return jsonify({
+                'success': False,
+                'message': 'No se proporcionaron problemas para reportar'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        reportes_creados = []
+        
+        for problema in problemas:
+            detalle_id = problema.get('id_detalle')
+            tipo_problema = problema.get('tipo_problema')
+            descripcion = problema.get('descripcion_problema')
+            responsable = problema.get('responsable', 'Cliente')
+            costo_problema = problema.get('costo_problema', 0)
+            
+            if not tipo_problema or not descripcion:
+                continue  # Saltar si no tiene datos completos
+            
+            # Obtener información del artículo
+            cursor.execute("""
+                SELECT ea.id_articulo, a.nombre_articulo
+                FROM evento_articulos ea
+                JOIN articulos a ON ea.id_articulo = a.id_articulo
+                WHERE ea.id_detalle = %s AND ea.id_evento = %s
+            """, (detalle_id, evento_id))
+            
+            result = cursor.fetchone()
+            if not result:
+                continue
+            
+            id_articulo, nombre_articulo = result
+            
+            # Crear el reporte
+            cursor.execute("""
+                INSERT INTO reportes_problemas 
+                (id_evento, id_articulo, tipo_problema, descripcion_problema, 
+                 responsable, costo_problema, estado_reporte, reportado_por, fecha_reporte)
+                VALUES (%s, %s, %s, %s, %s, %s, 'abierto', %s, 
+                        CURRENT_TIMESTAMP AT TIME ZONE 'America/Guatemala')
+                RETURNING id_reporte
+            """, (
+                evento_id,
+                id_articulo,
+                tipo_problema,
+                descripcion,
+                responsable,
+                costo_problema,
+                session.get('user_id')
+            ))
+            
+            id_reporte = cursor.fetchone()[0]
+            reportes_creados.append(id_reporte)
+        
+        db.session.commit()
+        
+        if not reportes_creados:
+            return jsonify({
+                'success': False,
+                'message': 'No se pudo crear ningún reporte'
+            }), 400
+        
+        return jsonify({
+            'success': True,
+            'message': f'{len(reportes_creados)} reporte(s) creado(s) exitosamente',
+            'reportes_ids': reportes_creados,
+            'evento_id': evento_id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creando reportes múltiples: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error al crear reportes: {str(e)}'
+        }), 500
+
+
+@app.route('/api/eventos/<int:evento_id>/reporte-problemas-consolidado/pdf', methods=['GET'])
+def generar_reporte_problemas_consolidado_pdf(evento_id):
+    """Generar PDF consolidado con TODOS los problemas del evento"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener información del evento
+        cursor.execute("""
+            SELECT 
+                e.numero_evento,
+                e.fecha_evento,
+                e.lugar_evento,
+                c.nombre as cliente_nombre,
+                c.telefono as cliente_telefono,
+                c.direccion as cliente_direccion
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            WHERE e.id_evento = %s
+        """, (evento_id,))
+        
+        evento = cursor.fetchone()
+        
+        if not evento:
+            return jsonify({
+                'success': False,
+                'message': 'Evento no encontrado'
+            }), 404
+        
+        # Obtener todos los reportes de problemas del evento
+
+        # Obtener todos los reportes de problemas del evento
+        cursor.execute("""
+            SELECT 
+                rp.id_reporte,
+                rp.tipo_problema,
+                rp.descripcion_problema,
+                rp.costo_problema,
+                rp.fecha_reporte,
+                rp.responsable,
+                a.codigo as articulo_codigo,
+                a.nombre_articulo,
+                emp.nombre as empleado_nombre,
+                ea.cantidad_solicitada,
+                ea.precio_unitario as precio_alquiler
+            FROM reportes_problemas rp
+            JOIN articulos a ON rp.id_articulo = a.id_articulo
+            LEFT JOIN users u ON rp.reportado_por = u.id
+            LEFT JOIN empleados emp ON u.id = emp.user_id
+            LEFT JOIN evento_articulos ea ON ea.id_evento = rp.id_evento AND ea.id_articulo = rp.id_articulo
+            WHERE rp.id_evento = %s
+            ORDER BY rp.fecha_reporte DESC
+        """, (evento_id,))
+
+        reportes = cursor.fetchall()
+
+        
+        if not reportes:
+            return jsonify({
+                'success': False,
+                'message': 'No hay reportes de problemas para este evento'
+            }), 404
+        
+        # Crear PDF
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+        from reportlab.lib.units import inch
+        from io import BytesIO
+        from datetime import datetime
+        
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Estilos personalizados
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=26,
+            textColor=colors.HexColor('#EF4444'),
+            spaceAfter=10,
+            alignment=1,
+            fontName='Helvetica-Bold'
+        )
+        
+        subtitle_style = ParagraphStyle(
+            'CustomSubtitle',
+            parent=styles['Normal'],
+            fontSize=12,
+            textColor=colors.HexColor('#6B7280'),
+            spaceAfter=30,
+            alignment=1
+        )
+        
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=14,
+            textColor=colors.HexColor('#1F2937'),
+            spaceAfter=12,
+            spaceBefore=12,
+            fontName='Helvetica-Bold'
+        )
+        
+        # Título
+        elements.append(Paragraph("REPORTE CONSOLIDADO DE PROBLEMAS", title_style))
+        elements.append(Paragraph(f"Evento: {evento[0]}", subtitle_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Información del evento
+        elements.append(Paragraph("INFORMACIÓN DEL EVENTO", heading_style))
+        
+        evento_data = [
+            ['Número de Evento:', evento[0]],
+            ['Cliente:', evento[3] or 'N/A'],
+            ['Fecha del Evento:', evento[1].strftime('%d/%m/%Y') if evento[1] else 'N/A'],
+            ['Lugar:', evento[2] or 'N/A'],
+            ['Teléfono Cliente:', evento[4] or 'N/A'],
+        ]
+        
+        evento_table = Table(evento_data, colWidths=[2*inch, 4*inch])
+        evento_table.setStyle(TableStyle([
+            ('FONT', (0, 0), (0, -1), 'Helvetica-Bold', 10),
+            ('FONT', (1, 0), (1, -1), 'Helvetica', 10),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1F2937')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F9FAFB')),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
+        ]))
+        elements.append(evento_table)
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Resumen de problemas
+        total_costo = sum(float(r[3]) for r in reportes)
+        
+        elements.append(Paragraph("RESUMEN DE PROBLEMAS", heading_style))
+        
+        resumen_data = [
+            ['Total de problemas reportados:', str(len(reportes))],
+            ['Costo total de problemas:', f'Q{total_costo:.2f}'],
+        ]
+        
+        resumen_table = Table(resumen_data, colWidths=[3*inch, 2*inch])
+        resumen_table.setStyle(TableStyle([
+            ('FONT', (0, 0), (0, -1), 'Helvetica-Bold', 11),
+            ('FONT', (1, 0), (1, -1), 'Helvetica-Bold', 12),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1F2937')),
+            ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#EF4444')),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#FEF2F2')),
+            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#EF4444')),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        elements.append(resumen_table)
+        elements.append(Spacer(1, 0.4*inch))
+        
+        # Detalle de cada problema
+        elements.append(Paragraph("DETALLE DE PROBLEMAS", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        tipo_problema_texto = {
+            'daño': 'DAÑO',
+            'perdida': 'PÉRDIDA',
+            'faltante': 'FALTANTE',
+            'defecto': 'DEFECTO',
+            'roto': 'ROTO'
+        }
+        
+        for i, reporte in enumerate(reportes, 1):
+            # Encabezado del problema
+            problema_header = ParagraphStyle(
+                'ProblemaHeader',
+                parent=styles['Normal'],
+                fontSize=12,
+                textColor=colors.white,
+                fontName='Helvetica-Bold',
+                spaceAfter=8
+            )
+            
+            header_data = [[f"PROBLEMA #{i} - {reporte[6]}: {reporte[7]}"]]
+            header_table = Table(header_data, colWidths=[6.5*inch])
+            header_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#EF4444')),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+                ('FONT', (0, 0), (-1, -1), 'Helvetica-Bold', 11),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ]))
+            elements.append(header_table)
+            
+            # Datos del problema
+            problema_data = [
+                ['Tipo de Problema:', tipo_problema_texto.get(reporte[1], reporte[1].upper())],
+                ['Responsable:', reporte[5] or 'N/A'],
+                ['Cantidad:', str(reporte[9] or 1)],  # cantidad_solicitada
+                ['Precio Unitario:', f'Q{float(reporte[10] or 0):.2f}'],  # precio_alquiler
+                ['Costo Total:', f'Q{float(reporte[3]):.2f}'],  # costo_problema
+                ['Fecha del Reporte:', reporte[4].strftime('%d/%m/%Y %I:%M %p') if reporte[4] else 'N/A'],
+                ['Reportado por:', reporte[8] or 'Sistema'],
+            ]
                         
-                        <!-- Checkboxes para mostrar secciones -->
-                        <div class="section-toggles">
-                            <div class="toggle-item">
-                                <input type="checkbox" id="toggleArticulos" onchange="toggleEventoSection('articulos-section')">
-                                <label for="toggleArticulos">Incluir Artículos</label>
-                            </div>
-                            <div class="toggle-item">
-                                <input type="checkbox" id="toggleServicios" onchange="toggleEventoSection('servicios-section')">
-                                <label for="toggleServicios">Incluir Servicios</label>
-                            </div>
-                        </div>
+            problema_table = Table(problema_data, colWidths=[1.8*inch, 4.7*inch])
+            problema_table.setStyle(TableStyle([
+                ('FONT', (0, 0), (0, -1), 'Helvetica-Bold', 9),
+                ('FONT', (1, 0), (1, -1), 'Helvetica', 9),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1F2937')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#FAFAFA')),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E5E7EB')),
+            ]))
+            elements.append(problema_table)
+            
+            # Descripción
+            desc_style = ParagraphStyle(
+                'Descripcion',
+                parent=styles['Normal'],
+                fontSize=9,
+                textColor=colors.HexColor('#374151'),
+                spaceBefore=8,
+                spaceAfter=8,
+                leftIndent=10,
+                rightIndent=10
+            )
+            
+            desc_data = [[Paragraph(f"<b>Descripción:</b><br/>{reporte[2]}", desc_style)]]
+            desc_table = Table(desc_data, colWidths=[6.5*inch])
+            desc_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#FFFFFF')),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
+                ('TOPPADDING', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ]))
+            elements.append(desc_table)
+            elements.append(Spacer(1, 0.3*inch))
+        
+        # Total final
+        elements.append(Spacer(1, 0.2*inch))
+        total_data = [[f'COSTO TOTAL DE PROBLEMAS: Q{total_costo:.2f}']]
+        total_table = Table(total_data, colWidths=[6.5*inch])
+        total_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#FEE2E2')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#991B1B')),
+            ('FONT', (0, 0), (-1, -1), 'Helvetica-Bold', 14),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#EF4444')),
+            ('TOPPADDING', (0, 0), (-1, -1), 15),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+        ]))
+        elements.append(total_table)
+        
+        # Nota al pie
+        elements.append(Spacer(1, 0.5*inch))
+        nota_style = ParagraphStyle(
+            'Nota',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#6B7280'),
+            alignment=1
+        )
+        elements.append(Paragraph(
+            "Este documento es un reporte oficial consolidado de todos los problemas presentados en el evento. "
+            "Los costos indicados corresponden a los valores de reposición o reparación de los artículos afectados.",
+            nota_style
+        ))
+        
+        # Generar PDF
+        doc.build(elements)
+        buffer.seek(0)
+        
+        return send_file(
+            buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'Reporte_Problemas_{evento[0]}.pdf'
+        )
+        
+    except Exception as e:
+        print(f"Error generando PDF consolidado: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error al generar PDF: {str(e)}'
+        }), 500
 
-                        <!-- Sección Artículos -->
-                        <div id="articulos-section" class="selection-section hidden">
-                            <h4>Seleccionar Artículos</h4>
-                            <div class="search-bar">
-                                <input type="text" class="form-control" id="search-articulos-evento" placeholder="Buscar artículos...">
-                            </div>
-                            <div class="items-grid" id="articulos-grid">
-                                <!-- Artículos se cargarán aquí -->
-                            </div>
-                        </div>
+@app.route('/api/cotizaciones/<int:cotizacion_id>/pdf', methods=['GET'])
+def generar_cotizacion_pdf(cotizacion_id):
+    """Generar PDF de la cotización"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener cotización completa usando nombres de columnas
+        cursor.execute("""
+            SELECT c.id_cotizacion, c.numero_cotizacion, c.id_cliente, c.id_empleado,
+                   c.fecha_cotizacion, c.fecha_evento, c.hora_inicio, c.hora_fin,
+                   c.lugar_evento, c.numero_invitados, c.monto_total, c.descuento,
+                   c.estado, c.vigencia_dias, c.notas,
+                   cl.nombre as cliente_nombre, cl.telefono as cliente_telefono,
+                   cl.direccion as cliente_direccion, 
+                   e.nombre as empleado_nombre
+            FROM cotizaciones c
+            LEFT JOIN clientes cl ON c.id_cliente = cl.id_cliente
+            LEFT JOIN empleados e ON c.id_empleado = e.id_empleado
+            WHERE c.id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        columns = [desc[0] for desc in cursor.description]
+        result = cursor.fetchone()
+        
+        if not result:
+            return jsonify({'success': False, 'message': 'Cotización no encontrada'}), 404
+        
+        # Convertir a diccionario para acceso por nombre
+        cotizacion = dict(zip(columns, result))
+        
+        # Obtener artículos
+        cursor.execute("""
+            SELECT a.codigo, a.nombre_articulo, ca.cantidad, ca.precio_unitario, ca.subtotal
+            FROM cotizacion_articulos ca
+            JOIN articulos a ON ca.id_articulo = a.id_articulo
+            WHERE ca.id_cotizacion = %s
+        """, (cotizacion_id,))
+        articulos = cursor.fetchall()
+        
+        # Obtener servicios
+        cursor.execute("""
+            SELECT s.codigo, s.nombre_servicio, cs.cantidad_horas, cs.precio_unitario, cs.subtotal
+            FROM cotizacion_servicios cs
+            JOIN servicios s ON cs.id_servicio = s.id_servicio
+            WHERE cs.id_cotizacion = %s
+        """, (cotizacion_id,))
+        servicios = cursor.fetchall()
+        
+        # Crear PDF
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, bottomMargin=0.5*inch,
+                               leftMargin=0.75*inch, rightMargin=0.75*inch)
+        story = []
+        
+        # Estilos
+        styles = getSampleStyleSheet()
+        
+        # Header con logo
+        logo_path = 'static/alquifiestas.png'
+        if os.path.exists(logo_path):
+            logo = RLImage(logo_path, width=1.2*inch, height=1.2*inch)
+            
+            header_title = Paragraph(
+                "<b>ALQUIFIESTAS LA CALZADA</b><br/>"
+                "<font size=10>Teléfono: (502) 4211-6543 | Email: multiservicioslacalzada@gmail.com</font><br/>"
+                "<font size=9>Ciudad de Guatemala</font>",
+                ParagraphStyle('HeaderTitle', parent=styles['Normal'], fontSize=14, 
+                             textColor=colors.HexColor('#2563EB'), alignment=2, spaceAfter=10)
+            )
+            
+            header_data = [[logo, header_title]]
+            header_table = Table(header_data, colWidths=[1.5*inch, 5*inch])
+            header_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ]))
+            story.append(header_table)
+        else:
+            # Fallback si no existe el logo
+            company_name = Paragraph(
+                "<b>ALQUIFIESTAS LA CALZADA</b>",
+                ParagraphStyle('CompanyName', parent=styles['Heading1'], fontSize=20,
+                             textColor=colors.HexColor('#2563EB'), alignment=1)
+            )
+            story.append(company_name)
+        
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Línea separadora
+        line_table = Table([['', '']], colWidths=[6.5*inch, 0*inch])
+        line_table.setStyle(TableStyle([
+            ('LINEABOVE', (0, 0), (-1, 0), 2, colors.HexColor('#2563EB')),
+        ]))
+        story.append(line_table)
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Título de cotización
+        title = Paragraph(
+            f"<b>COTIZACIÓN {cotizacion['numero_cotizacion']}</b>",
+            ParagraphStyle('CotTitle', parent=styles['Heading1'], fontSize=18,
+                         textColor=colors.HexColor('#1D4ED8'), spaceAfter=20, alignment=1)
+        )
+        story.append(title)
+        
+        # Función helper para formatear fechas de forma segura
+        def format_fecha(fecha):
+            if fecha is None:
+                return 'N/A'
+            if isinstance(fecha, date):
+                return fecha.strftime('%d/%m/%Y')
+            if isinstance(fecha, str):
+                try:
+                    return datetime.strptime(fecha, '%Y-%m-%d').strftime('%d/%m/%Y')
+                except:
+                    return fecha
+            return 'N/A'
+        
+        def format_hora(hora):
+            if hora is None:
+                return 'N/A'
+            if isinstance(hora, time):
+                return hora.strftime('%H:%M')
+            if isinstance(hora, str):
+                return hora
+            return 'N/A'
+        
+        # Información general
+        fecha_actual = datetime.now().strftime("%d/%m/%Y")
+        
+        info_data = [
+            [Paragraph('<b>Fecha de Cotización:</b>', styles['Normal']), 
+             format_fecha(cotizacion['fecha_cotizacion']),
+             Paragraph('<b>Vigencia:</b>', styles['Normal']), 
+             f"{cotizacion['vigencia_dias']} días"],
+            
+            [Paragraph('<b>Cliente:</b>', styles['Normal']), 
+             cotizacion['cliente_nombre'] or 'Por definir',
+             Paragraph('<b>Teléfono:</b>', styles['Normal']), 
+             cotizacion['cliente_telefono'] or 'N/A'],
+            
+            [Paragraph('<b>Fecha del Evento:</b>', styles['Normal']), 
+             format_fecha(cotizacion['fecha_evento']),
+             Paragraph('<b>Hora:</b>', styles['Normal']), 
+             f"{format_hora(cotizacion['hora_inicio'])} - {format_hora(cotizacion['hora_fin'])}"],
+            
+            [Paragraph('<b>Lugar:</b>', styles['Normal']), 
+             cotizacion['lugar_evento'] or 'Por definir',
+             Paragraph('<b>Invitados:</b>', styles['Normal']), 
+             str(cotizacion['numero_invitados']) if cotizacion['numero_invitados'] else 'Por definir']
+        ]
+        
+        info_table = Table(info_data, colWidths=[1.5*inch, 2.5*inch, 1.2*inch, 1.3*inch])
+        info_table.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 0.3*inch))
+        
+        # Artículos
+        if articulos and len(articulos) > 0:
+            story.append(Paragraph("<b>ARTÍCULOS</b>", styles['Heading3']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            articulos_data = [['Código', 'Artículo', 'Cantidad', 'Precio Unit.', 'Subtotal']]
+            for art in articulos:
+                articulos_data.append([
+                    art[0] or '',
+                    art[1],
+                    str(art[2]),
+                    f"Q{float(art[3]):.2f}",
+                    f"Q{float(art[4]):.2f}"
+                ])
+            
+            articulos_table = Table(articulos_data, colWidths=[0.9*inch, 2.8*inch, 0.9*inch, 1*inch, 1*inch])
+            articulos_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2563EB')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('TOPPADDING', (0, 0), (-1, 0), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ]))
+            story.append(articulos_table)
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Servicios
+        if servicios and len(servicios) > 0:
+            story.append(Paragraph("<b>SERVICIOS</b>", styles['Heading3']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            servicios_data = [['Código', 'Servicio', 'Horas', 'Precio Unit.', 'Subtotal']]
+            for serv in servicios:
+                servicios_data.append([
+                    serv[0] or '',
+                    serv[1],
+                    str(serv[2]),
+                    f"Q{float(serv[3]):.2f}",
+                    f"Q{float(serv[4]):.2f}"
+                ])
+            
+            servicios_table = Table(servicios_data, colWidths=[0.9*inch, 2.8*inch, 0.9*inch, 1*inch, 1*inch])
+            servicios_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#10B981')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('TOPPADDING', (0, 0), (-1, 0), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.lightgreen),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ]))
+            story.append(servicios_table)
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Mensaje si no hay artículos ni servicios
+        if (not articulos or len(articulos) == 0) and (not servicios or len(servicios) == 0):
+            no_items = Paragraph(
+                "<i>No se han agregado artículos ni servicios a esta cotización.</i>",
+                ParagraphStyle('NoData', parent=styles['Normal'], alignment=1, textColor=colors.grey)
+            )
+            story.append(no_items)
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Totales
+        monto_total = float(cotizacion['monto_total']) if cotizacion['monto_total'] else 0
+        descuento = float(cotizacion['descuento']) if cotizacion['descuento'] else 0
+        total_final = monto_total - descuento
 
-                        <!-- Sección Servicios -->
-                        <div id="servicios-section" class="selection-section hidden">
-                            <h4>Seleccionar Servicios</h4>
-                            <div class="items-grid" id="servicios-grid">
-                                <!-- Servicios se cargarán aquí -->
-                            </div>
-                        </div>
-                    </div>
+        totales_data = [
+            ['Subtotal:', f"Q{monto_total:.2f}"],
+            ['Descuento:', f"Q{descuento:.2f}"],
+            [Paragraph('<b>TOTAL:</b>', styles['Normal']), 
+             Paragraph(f"<b>Q{total_final:.2f}</b>", styles['Normal'])]
+        ]
 
-                    <!-- Sección 3: Carrito/Resumen -->
-                    <div class="form-section">
-                        <h3><i class="fas fa-shopping-cart"></i> Resumen del Evento</h3>
-                        <div class="cart-container">
-                            <table class="cart-table" id="evento-cart">
-                                <thead>
-                                    <tr>
-                                        <th>Concepto</th>
-                                        <th>Precio Unitario</th>
-                                        <th>Cantidad</th>
-                                        <th>Subtotal</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="cart-body">
-                                    <tr class="empty-cart">
-                                        <td colspan="5" class="text-center text-muted">No hay elementos en el carrito</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <div class="cart-total">
-                                <h4>Total: Q<span id="cart-total">0.00</span></h4>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" onclick="closeModal('eventoModal')">Cancelar</button>
-                        <button type="button" class="btn btn-primary" onclick="guardarEventoCompleto()">
-                            <i class="fas fa-save"></i>
-                            Guardar Evento
-            </button>
-            </div>
-        </div>
-    </div>
+        totales_table = Table(totales_data, colWidths=[5*inch, 1.5*inch])
+        totales_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('FONTSIZE', (0, -1), (-1, -1), 14),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.HexColor('#2563EB')),
+            ('LINEABOVE', (0, -1), (-1, -1), 2, colors.HexColor('#2563EB')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(totales_table)
+        story.append(Spacer(1, 0.3*inch))
+        
+        # Notas
+        if cotizacion['notas']:
+            story.append(Paragraph("<b>NOTAS:</b>", styles['Heading4']))
+            story.append(Paragraph(cotizacion['notas'], styles['Normal']))
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Términos y condiciones
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph("<b>TÉRMINOS Y CONDICIONES</b>", styles['Heading4']))
+        terminos = [
+            f"• Esta cotización tiene una validez de {cotizacion['vigencia_dias']} días a partir de la fecha de emisión.",
+            "• Los precios están sujetos a cambios sin previo aviso.",
+            "• Se requiere un anticipo del 50% para confirmar la reserva.",
+            "• El saldo restante debe ser pagado antes o el día del evento.",
+            "• Las cancelaciones deben notificarse con al menos 7 días de anticipación.",
+            "• Los artículos deben ser devueltos en las mismas condiciones en que fueron entregados."
+        ]
+        for termino in terminos:
+            story.append(Paragraph(termino, ParagraphStyle('Terminos', parent=styles['Normal'], fontSize=8, leftIndent=20)))
+        
+        # Footer
+        story.append(Spacer(1, 0.3*inch))
+        footer = Paragraph(
+            f"<i>Cotización generada el {fecha_actual}</i><br/>"
+            f"<i>Atendido por: {cotizacion['empleado_nombre'] or 'N/A'}</i><br/><br/>"
+            "¡Gracias por su preferencia!",
+            ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, 
+                         alignment=1, textColor=colors.grey)
+        )
+        story.append(footer)
+        
+        # Generar PDF
+        doc.build(story)
+        buffer.seek(0)
+        
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=f"cotizacion_{cotizacion['numero_cotizacion']}.pdf",
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        print(f"Error generando PDF de cotización: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error generando PDF: {str(e)}'
+        }), 500
+    
+# ===============================================
+# ENDPOINTS ADICIONALES
+# ===============================================
+
+@app.route('/api/categorias', methods=['GET'])
+def get_categorias():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        cursor.execute("SELECT id_categoria, nombre, descripcion FROM categorias_articulos ORDER BY nombre")
+        
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
+        
+        categorias = [dict(zip(columns, row)) for row in results]
+        
+        return jsonify({
+            'success': True,
+            'categorias': categorias
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo categorías: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo categorías'
+        }), 500
+
+@app.route('/api/servicios', methods=['GET'])
+def get_servicios():
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        cursor.execute("""
+            SELECT id_servicio, codigo, nombre_servicio, categoria, descripcion,
+                   precio_por_hora, precio_fijo, tipo_precio, horas_minimas, estado
+            FROM servicios 
+            WHERE estado = 'activo'
+            ORDER BY categoria, nombre_servicio
+        """)
+        
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
+        
+        servicios = []
+        for row in results:
+            servicio = dict(zip(columns, row))
+            if servicio['precio_por_hora']:
+                servicio['precio_por_hora'] = float(servicio['precio_por_hora'])
+            if servicio['precio_fijo']:
+                servicio['precio_fijo'] = float(servicio['precio_fijo'])
+            servicios.append(servicio)
+        
+        return jsonify({
+            'success': True,
+            'servicios': servicios
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo servicios: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo servicios'
+        }), 500
+    
+# ===============================================
+# ENDPOINT CORREGIDO PARA EVENTOS COMPLETOS
+# ===============================================
+
+@app.route('/api/eventos/completo', methods=['POST'])
+def create_evento_completo():
+    """Crear evento completo con artículos y servicios SIN descontar stock"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        
+        # Validaciones
+        required_fields = ['id_cliente', 'fecha_evento']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({
+                    'success': False,
+                    'message': f'El campo {field} es requerido'
+                }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Generar número de evento único
+        cursor.execute("SELECT COUNT(*) FROM eventos WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)")
+        count = cursor.fetchone()[0] + 1
+        numero_evento = f"EVT-{datetime.now().year}-{count:04d}"
+        
+        # Insertar evento
+        cursor.execute("""
+            INSERT INTO eventos (numero_evento, id_cliente, id_empleado_asignado, fecha_evento,
+                               hora_inicio, hora_fin, lugar_evento, numero_invitados, notas, 
+                               estado, monto_total)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'reservado', %s)
+            RETURNING id_evento
+        """, (
+            numero_evento,
+            data['id_cliente'],
+            empleado_id,
+            data['fecha_evento'],
+            data.get('hora_inicio'),
+            data.get('hora_fin'),
+            data.get('lugar_evento', ''),
+            data.get('numero_invitados'),
+            data.get('notas', ''),
+            data.get('monto_total', 0)
+        ))
+        
+        evento_id = cursor.fetchone()[0]
+        
+        # Insertar artículos del evento (SOLO registrar, NO descontar stock)
+        articulos = data.get('articulos', [])
+        for articulo in articulos:
+            # Verificar que el artículo existe
+            cursor.execute("""
+                SELECT cantidad_disponible, nombre_articulo 
+                FROM articulos 
+                WHERE id_articulo = %s
+            """, (articulo['id_articulo'],))
+            
+            stock_info = cursor.fetchone()
+            if not stock_info:
+                db.session.rollback()
+                return jsonify({
+                    'success': False,
+                    'message': f'Artículo con ID {articulo["id_articulo"]} no encontrado'
+                }), 400
+            
+            # IMPORTANTE: Solo registrar en evento_articulos con estado 'reservado'
+            # NO descontar del stock todavía
+            cursor.execute("""
+                INSERT INTO evento_articulos (id_evento, id_articulo, cantidad_solicitada, 
+                                            precio_unitario, estado_articulo, notas)
+                VALUES (%s, %s, %s, %s, 'reservado', %s)
+            """, (
+                evento_id,
+                articulo['id_articulo'],
+                articulo['cantidad'],
+                articulo['precio_unitario'],
+                f'Reservado para evento {numero_evento}'
+            ))
+        
+        # Insertar servicios del evento
+        servicios = data.get('servicios', [])
+        for servicio in servicios:
+            cursor.execute("""
+                SELECT nombre_servicio FROM servicios 
+                WHERE id_servicio = %s AND estado = 'activo'
+            """, (servicio['id_servicio'],))
+            
+            servicio_info = cursor.fetchone()
+            if not servicio_info:
+                db.session.rollback()
+                return jsonify({
+                    'success': False,
+                    'message': f'Servicio con ID {servicio["id_servicio"]} no encontrado o inactivo'
+                }), 400
+            
+            cursor.execute("""
+                INSERT INTO evento_servicios (id_evento, id_servicio, horas_contratadas, precio_unitario, notas)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (
+                evento_id,
+                servicio['id_servicio'],
+                servicio.get('cantidad', 1),
+                servicio['precio_unitario'],
+                f'Agregado desde evento completo'
+            ))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Evento creado exitosamente',
+            'evento_id': evento_id,
+            'numero_evento': numero_evento
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creando evento completo: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error creando evento completo: {str(e)}'
+        }), 500
+    
+# ===============================================
+# ENDPOINTS ADICIONALES CORREGIDOS
+# ===============================================
+
+@app.route('/api/eventos/<int:evento_id>/articulos', methods=['POST'])
+def add_articulo_to_evento(evento_id):
+    """Agregar artículo a un evento existente"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        
+        required_fields = ['id_articulo', 'cantidad', 'precio_unitario']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'message': f'El campo {field} es requerido'
+                }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar stock disponible
+        cursor.execute("""
+            SELECT cantidad_disponible, nombre_articulo FROM articulos 
+            WHERE id_articulo = %s AND estado = 'activo'
+        """, (data['id_articulo'],))
+        
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Artículo no encontrado'
+            }), 404
+        
+        if result[0] < data['cantidad']:
+            return jsonify({
+                'success': False,
+                'message': f'No hay suficiente stock disponible. Disponible: {result[0]}'
+            }), 400
+        
+        # Verificar si ya existe el artículo en el evento
+        cursor.execute("""
+            SELECT cantidad_solicitada FROM evento_articulos 
+            WHERE id_evento = %s AND id_articulo = %s
+        """, (evento_id, data['id_articulo']))
+        
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Actualizar cantidad existente
+            nueva_cantidad = existing[0] + data['cantidad']
+            cursor.execute("""
+                UPDATE evento_articulos 
+                SET cantidad_solicitada = %s
+                WHERE id_evento = %s AND id_articulo = %s
+            """, (nueva_cantidad, evento_id, data['id_articulo']))
+        else:
+            # Agregar nuevo artículo al evento
+            cursor.execute("""
+                INSERT INTO evento_articulos (id_evento, id_articulo, cantidad_solicitada, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                evento_id,
+                data['id_articulo'],
+                data['cantidad'],
+                data['precio_unitario']
+            ))
+        
+        # Actualizar stock
+        cursor.execute("""
+            UPDATE articulos 
+            SET cantidad_disponible = cantidad_disponible - %s
+            WHERE id_articulo = %s
+        """, (data['cantidad'], data['id_articulo']))
+        
+        # Registrar movimiento
+        cursor.execute("""
+            INSERT INTO movimientos_inventario (id_articulo, id_evento, tipo_movimiento, cantidad,
+                                              cantidad_anterior, cantidad_nueva, responsable, observaciones)
+            VALUES (%s, %s, 'salida', %s, %s, %s, %s, %s)
+        """, (
+            data['id_articulo'],
+            evento_id,
+            data['cantidad'],
+            result[0],
+            result[0] - data['cantidad'],
+            session.get('user_name', 'Sistema'),
+            f'Artículo agregado al evento'
+        ))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Artículo agregado al evento exitosamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error agregando artículo a evento: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error agregando artículo al evento'
+        }), 500
+
+@app.route('/api/eventos/<int:evento_id>/servicios', methods=['POST'])
+def add_servicio_to_evento(evento_id):
+    """Agregar servicio a un evento existente"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        
+        required_fields = ['id_servicio', 'horas', 'precio_unitario']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'message': f'El campo {field} es requerido'
+                }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el servicio existe
+        cursor.execute("""
+            SELECT nombre_servicio FROM servicios 
+            WHERE id_servicio = %s AND estado = 'activo'
+        """, (data['id_servicio'],))
+        
+        if not cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': 'Servicio no encontrado'
+            }), 404
+        
+        # Verificar si ya existe el servicio en el evento
+        cursor.execute("""
+            SELECT horas_contratadas FROM evento_servicios 
+            WHERE id_evento = %s AND id_servicio = %s
+        """, (evento_id, data['id_servicio']))
+        
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Actualizar horas existentes
+            nuevas_horas = existing[0] + data['horas']
+            cursor.execute("""
+                UPDATE evento_servicios 
+                SET horas_contratadas = %s
+                WHERE id_evento = %s AND id_servicio = %s
+            """, (nuevas_horas, evento_id, data['id_servicio']))
+        else:
+            # Agregar nuevo servicio al evento
+            cursor.execute("""
+                INSERT INTO evento_servicios (id_evento, id_servicio, horas_contratadas, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                evento_id,
+                data['id_servicio'],
+                data['horas'],
+                data['precio_unitario']
+            ))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Servicio agregado al evento exitosamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error agregando servicio a evento: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error agregando servicio al evento'
+        }), 500
+
+# ===============================================
+# ENDPOINTS PARA GESTIÓN DE ARTÍCULOS POR EVENTO
+# ===============================================
+@app.route('/api/eventos/<int:evento_id>/articulos', methods=['GET'])
+def get_evento_articulos(evento_id):
+    """Obtener artículos de un evento con su estado"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+              
+        # Obtener información del evento
+        cursor.execute("""
+            SELECT e.numero_evento, e.fecha_evento, e.estado, c.nombre as cliente_nombre
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            WHERE e.id_evento = %s
+        """, (evento_id,))
+        
+        evento_info = cursor.fetchone()
+        
+        if not evento_info:
+            print(f"❌ Evento {evento_id} no encontrado")
+            return jsonify({
+                'success': False,
+                'message': f'Evento con ID {evento_id} no encontrado'
+            }), 404
+        
+      
+        # Obtener artículos del evento
+        cursor.execute("""
+            SELECT ea.id_detalle, ea.id_articulo, a.codigo, a.nombre_articulo,
+                   ea.cantidad_solicitada, ea.cantidad_entregada, ea.cantidad_recogida,
+                   ea.cantidad_dañada, ea.cantidad_perdida, ea.precio_unitario,
+                   ea.estado_articulo, 
+                   ea.fecha_recogida, ea.fecha_entrega, ea.fecha_devolucion,
+                   ea.notas, a.cantidad_disponible as stock_actual
+            FROM evento_articulos ea
+            JOIN articulos a ON ea.id_articulo = a.id_articulo
+            WHERE ea.id_evento = %s
+            ORDER BY a.nombre_articulo
+        """, (evento_id,))
+        
+        columns = [desc[0] for desc in cursor.description]
+        articulos_results = cursor.fetchall()
+               
+        articulos = []
+        for row in articulos_results:
+            articulo = dict(zip(columns, row))
+            # Convertir tipos para JSON
+            if articulo['precio_unitario']:
+                articulo['precio_unitario'] = float(articulo['precio_unitario'])
+            # Convertir fechas a ISO format
+            if articulo.get('fecha_recogida'):
+                articulo['fecha_recogida'] = articulo['fecha_recogida'].isoformat() if articulo['fecha_recogida'] else None
+            if articulo.get('fecha_entrega'):
+                articulo['fecha_entrega'] = articulo['fecha_entrega'].isoformat() if articulo['fecha_entrega'] else None
+            if articulo.get('fecha_devolucion'):
+                articulo['fecha_devolucion'] = articulo['fecha_devolucion'].isoformat() if articulo['fecha_devolucion'] else None
+            articulos.append(articulo)
+        
+        response_data = {
+            'success': True,
+            'evento': {
+                'id_evento': evento_id,
+                'numero_evento': evento_info[0],
+                'fecha_evento': evento_info[1].isoformat() if evento_info[1] else None,
+                'estado': evento_info[2],
+                'cliente_nombre': evento_info[3]
+            },
+            'articulos': articulos
+        }
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        print(f"❌ Error en get_evento_articulos: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error obteniendo artículos del evento: {str(e)}'
+        }), 500
 
 
-    <!-- Modal Nuevo Cliente -->
-    <div id="clienteModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Nuevo Cliente</h2>
-                <span class="close" onclick="closeModal('clienteModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="cliente-form">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Nombre Completo</label>
-                            <input type="text" class="form-control" id="cliente-nombre" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Teléfono</label>
-                            <input type="text" class="form-control" id="cliente-telefono">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Dirección</label>
-                        <textarea class="form-control" id="cliente-direccion" rows="3"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Notas</label>
-                        <textarea class="form-control" id="cliente-notas" rows="3" placeholder="Notas adicionales sobre el cliente..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('clienteModal')">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="guardarCliente()">
-                    <i class="fas fa-save"></i>
-                    Guardar Cliente
-                </button>
-            </div>
-        </div>
-    </div>
+@app.route('/api/eventos/<int:evento_id>/articulos/<int:detalle_id>/estado', methods=['PUT'])
+def update_articulo_estado(evento_id, detalle_id):
+    """Actualizar estado de un artículo en un evento - SIMPLIFICADO A 4 ESTADOS"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.get_json()
+        nuevo_estado = data.get('estado_articulo')
+        
+        if not nuevo_estado:
+            return jsonify({
+                'success': False,
+                'message': 'El estado es requerido'
+            }), 400
+        
+        # Validar estado - SOLO 4 ESTADOS
+        estados_validos = ['reservado', 'entregado', 'recogido', 'con_problemas']
+        if nuevo_estado not in estados_validos:
+            return jsonify({
+                'success': False,
+                'message': f'Estado inválido. Estados válidos: {", ".join(estados_validos)}'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener información del artículo
+        cursor.execute("""
+            SELECT ea.id_articulo, ea.cantidad_solicitada, ea.estado_articulo, 
+                   a.cantidad_disponible, a.nombre_articulo
+            FROM evento_articulos ea
+            JOIN articulos a ON ea.id_articulo = a.id_articulo
+            WHERE ea.id_detalle = %s AND ea.id_evento = %s
+        """, (detalle_id, evento_id))
+        
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Artículo no encontrado en este evento'
+            }), 404
+        
+        id_articulo, cantidad_solicitada, estado_actual, stock_disponible, nombre_articulo = result
+        
+        # Lógica de actualización de stock según el cambio de estado
+        campo_fecha = None
+        actualizar_stock = False
+        cambio_stock = 0
+        registrar_movimiento = False
+        tipo_movimiento = None
+        
+        # LÓGICA SIMPLIFICADA:
+        # reservado -> entregado: se descuenta del stock
+        # entregado -> recogido: se devuelve al stock
+        
+        if estado_actual == 'reservado' and nuevo_estado == 'entregado':
+            # Al entregar, se reduce el stock
+            campo_fecha = 'fecha_entrega'
+            actualizar_stock = True
+            cambio_stock = -cantidad_solicitada
+            registrar_movimiento = True
+            tipo_movimiento = 'salida'
+            
+            # Actualizar cantidad_entregada
+            cursor.execute("""
+                UPDATE evento_articulos 
+                SET cantidad_entregada = cantidad_solicitada
+                WHERE id_detalle = %s
+            """, (detalle_id,))
+            
+        elif estado_actual == 'entregado' and nuevo_estado == 'recogido':
+            # Al recoger, se aumenta el stock
+            campo_fecha = 'fecha_devolucion'
+            actualizar_stock = True
+            cambio_stock = cantidad_solicitada
+            registrar_movimiento = True
+            tipo_movimiento = 'recogida'
+            
+            # Actualizar cantidad_recogida
+            cursor.execute("""
+                UPDATE evento_articulos 
+                SET cantidad_recogida = cantidad_solicitada
+                WHERE id_detalle = %s
+            """, (detalle_id,))
+        
+        # Verificar si hay stock suficiente al entregar
+        if cambio_stock < 0 and (stock_disponible + cambio_stock) < 0:
+            return jsonify({
+                'success': False,
+                'message': f'No hay suficiente stock disponible de {nombre_articulo}. Disponible: {stock_disponible}'
+            }), 400
+        
+        # Actualizar estado del artículo en el evento
+        update_query = """
+            UPDATE evento_articulos 
+            SET estado_articulo = %s
+        """
+        params = [nuevo_estado]
+        
+        if campo_fecha:
+            update_query += f", {campo_fecha} = CURRENT_TIMESTAMP"
+        
+        update_query += " WHERE id_detalle = %s"
+        params.append(detalle_id)
+        
+        cursor.execute(update_query, params)
+        
+        # Actualizar stock si es necesario
+        if actualizar_stock and cambio_stock != 0:
+            cursor.execute("""
+                UPDATE articulos 
+                SET cantidad_disponible = cantidad_disponible + %s
+                WHERE id_articulo = %s
+            """, (cambio_stock, id_articulo))
+        
+        # Registrar movimiento de inventario
+        if registrar_movimiento:
+            cursor.execute("""
+                INSERT INTO movimientos_inventario 
+                (id_articulo, id_evento, tipo_movimiento, cantidad, 
+                 cantidad_anterior, cantidad_nueva, responsable, observaciones)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                id_articulo,
+                evento_id,
+                tipo_movimiento,
+                abs(cambio_stock),
+                stock_disponible,
+                stock_disponible + cambio_stock,
+                session.get('user_name', 'Sistema'),
+                f'Cambio de estado de {estado_actual} a {nuevo_estado}'
+            ))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Estado actualizado a {nuevo_estado}',
+            'nuevo_estado': nuevo_estado
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error actualizando estado del artículo: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error actualizando estado: {str(e)}'
+        }), 500
 
-    <!-- Modal Editar Cliente -->
-    <div id="editarClienteModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Editar Cliente</h2>
-                <span class="close" onclick="closeModal('editarClienteModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="editar-cliente-form">
-                    <input type="hidden" id="edit-cliente-id">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Nombre Completo</label>
-                            <input type="text" class="form-control" id="edit-cliente-nombre" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Teléfono</label>
-                            <input type="text" class="form-control" id="edit-cliente-telefono">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Dirección</label>
-                        <textarea class="form-control" id="edit-cliente-direccion" rows="3"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Notas</label>
-                        <textarea class="form-control" id="edit-cliente-notas" rows="3"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('editarClienteModal')">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="actualizarCliente()">
-                    <i class="fas fa-save"></i>
-                    Actualizar Cliente
-                </button>
-            </div>
-        </div>
-    </div>
+@app.route('/api/eventos/articulos/gestion', methods=['GET'])
+def get_eventos_con_articulos():
+    """Obtener todos los eventos con artículos para gestión"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        empleado_id = get_empleado_id()
+        
+        # Obtener eventos con artículos (solo eventos futuros o en curso)
+        query = """
+            SELECT DISTINCT e.id_evento, e.numero_evento, e.fecha_evento, e.estado,
+                   c.nombre as cliente_nombre,
+                   COUNT(ea.id_detalle) as total_articulos,
+                   SUM(CASE WHEN ea.estado_articulo = 'reservado' THEN 1 ELSE 0 END) as articulos_reservados,
+                   SUM(CASE WHEN ea.estado_articulo = 'recogido' THEN 1 ELSE 0 END) as articulos_recogidos,
+                   SUM(CASE WHEN ea.estado_articulo = 'entregado' THEN 1 ELSE 0 END) as articulos_entregados,
+                   SUM(CASE WHEN ea.estado_articulo = 'devuelto' THEN 1 ELSE 0 END) as articulos_devueltos
+            FROM eventos e
+            LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+            LEFT JOIN evento_articulos ea ON e.id_evento = ea.id_evento
+            WHERE e.estado NOT IN ('cancelado', 'completado')
+            AND (e.id_empleado_asignado = %s OR e.id_empleado_asignado IS NULL OR %s IS NULL)
+            GROUP BY e.id_evento, e.numero_evento, e.fecha_evento, e.estado, c.nombre
+            HAVING COUNT(ea.id_detalle) > 0
+            ORDER BY e.fecha_evento ASC
+        """
+        
+        cursor.execute(query, (empleado_id, empleado_id))
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
+        
+        eventos = []
+        for row in results:
+            evento = dict(zip(columns, row))
+            if evento['fecha_evento']:
+                evento['fecha_evento'] = evento['fecha_evento'].isoformat()
+            eventos.append(evento)
+        
+        return jsonify({
+            'success': True,
+            'eventos': eventos
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo eventos con artículos: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Error obteniendo eventos con artículos'
+        }), 500
 
-    <!-- Modal Nueva Cotización Completa -->
-    <div id="cotizacionModal" class="modal">
-        <div class="modal-content" style="max-width: 1200px; width: 95%;">
-            <div class="modal-header">
-                <h2>Nueva Cotización</h2>
-                <span class="close" onclick="closeModal('cotizacionModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="evento-form-container">
-                    <!-- Sección 1: Datos generales -->
-                    <div class="form-section">
-                        <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
-                        <form id="cotizacion-form-completa">
-                            <!-- Toggle para cliente nuevo o existente -->
-                            <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                                <div style="display: flex; gap: 2rem; align-items: center;">
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
-                                        <input type="radio" name="cliente-tipo-cot" value="existente" checked onchange="toggleClienteFormCot('existente')">
-                                        <span>Seleccionar cliente existente</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
-                                        <input type="radio" name="cliente-tipo-cot" value="nuevo" onchange="toggleClienteFormCot('nuevo')">
-                                        <span>Crear nuevo cliente</span>
-                                    </label>
-                                </div>
-                            </div>
+# ===============================================
+# MANEJO DE ERRORES
+# ===============================================
 
-                            <!-- Cliente existente -->
-                            <div id="cliente-existente-section-cot">
-                                <div class="form-group">
-                                    <label>Cliente <span class="required">*</span></label>
-                                    <select class="form-control" id="cotizacion-cliente">
-                                        <option value="">Seleccionar cliente...</option>
-                                    </select>
-                                </div>
-                            </div>
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'success': False, 'message': 'Endpoint no encontrado'}), 404
 
-                            <!-- Nuevo cliente -->
-                            <div id="cliente-nuevo-section-cot" class="hidden">
-                                <div class="form-grid">
-                                    <div class="form-group">
-                                        <label>Nombre del Cliente <span class="required">*</span></label>
-                                        <input type="text" class="form-control" id="nuevo-cliente-nombre-cot" placeholder="Nombre completo">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Teléfono</label>
-                                        <input type="text" class="form-control" id="nuevo-cliente-telefono-cot" placeholder="Ej: 1234-5678">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Dirección</label>
-                                    <textarea class="form-control" id="nuevo-cliente-direccion-cot" rows="2" placeholder="Dirección del cliente"></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label>Notas sobre el cliente</label>
-                                    <textarea class="form-control" id="nuevo-cliente-notas-cot" rows="2" placeholder="Información adicional"></textarea>
-                                </div>
-                            </div>
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return jsonify({'success': False, 'message': 'Error interno del servidor'}), 500
 
-                            <!-- Resto del formulario de cotización -->
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label>Fecha del Evento</label>
-                                    <input type="date" class="form-control" id="cotizacion-fecha">
-                                </div>
-                                <div class="form-group">
-                                    <label>Hora Inicio</label>
-                                    <input type="time" class="form-control" id="cotizacion-hora-inicio">
-                                </div>
-                                <div class="form-group">
-                                    <label>Hora Fin</label>
-                                    <input type="time" class="form-control" id="cotizacion-hora-fin">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Lugar del Evento</label>
-                                <input type="text" class="form-control" id="cotizacion-lugar" placeholder="Dirección del evento">
-                            </div>
-                            <div class="form-group">
-                                <label>Número de Invitados</label>
-                                <input type="number" class="form-control" id="cotizacion-invitados" min="1" placeholder="Ej: 80">
-                            </div>
-                            <div class="form-group">
-                                <label>Notas / Requerimientos Especiales</label>
-                                <textarea class="form-control" id="cotizacion-notas" rows="3" placeholder="Detalles adicionales..."></textarea>
-                            </div>
-                        </form>
-                    </div>
 
-                    <!-- Sección 2: Artículos y Servicios -->
-                    <div class="form-section">
-                        <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
-                        
-                        <!-- Checkboxes para mostrar secciones -->
-                        <div class="section-toggles">
-                            <div class="toggle-item">
-                                <input type="checkbox" id="toggleArticulosCot" onchange="toggleCotizacionSection('articulos-section-cot')">
-                                <label for="toggleArticulosCot">Incluir Artículos</label>
-                            </div>
-                            <div class="toggle-item">
-                                <input type="checkbox" id="toggleServiciosCot" onchange="toggleCotizacionSection('servicios-section-cot')">
-                                <label for="toggleServiciosCot">Incluir Servicios</label>
-                            </div>
-                        </div>
+# ===============================================
+# ENDPOINTS PARA EVENTOS
+# ===============================================
 
-                        <!-- Sección Artículos -->
-                        <div id="articulos-section-cot" class="selection-section hidden">
-                            <h4>Seleccionar Artículos</h4>
-                            <div class="search-bar">
-                                <input type="text" class="form-control" id="search-articulos-cot" placeholder="Buscar artículos..." oninput="filterArticulosCot()">
-                            </div>
-                            <div class="items-grid" id="articulos-grid-cot">
-                                <!-- Artículos se cargarán aquí -->
-                            </div>
-                        </div>
+@app.route('/api/eventos/<int:evento_id>/puede-eliminar', methods=['GET'])
+def puede_eliminar_evento(evento_id):
+    """Verificar si un evento puede ser eliminado"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar artículos asociados
+        cursor.execute(
+            "SELECT COUNT(*) FROM evento_articulos WHERE id_evento = %s", 
+            (evento_id,)
+        )
+        tiene_articulos = cursor.fetchone()[0] > 0
+        
+        # Verificar pagos asociados
+        cursor.execute(
+            "SELECT COUNT(*) FROM pagos WHERE id_evento = %s", 
+            (evento_id,)
+        )
+        tiene_pagos = cursor.fetchone()[0] > 0
+        
+        return jsonify({
+            'success': True,
+            'tiene_articulos': tiene_articulos,
+            'tiene_pagos': tiene_pagos
+        })
+        
+    except Exception as e:
+        print(f"Error en puede_eliminar_evento: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-                        <!-- Sección Servicios -->
-                        <div id="servicios-section-cot" class="selection-section hidden">
-                            <h4>Seleccionar Servicios</h4>
-                            <div class="items-grid" id="servicios-grid-cot">
-                                <!-- Servicios se cargarán aquí -->
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Sección 3: Carrito/Resumen -->
-                    <div class="form-section">
-                        <h3><i class="fas fa-shopping-cart"></i> Resumen de la Cotización</h3>
-                        <div class="cart-container">
-                            <table class="cart-table" id="cotizacion-cart">
-                                <thead>
-                                    <tr>
-                                        <th>Concepto</th>
-                                        <th>Precio Unitario</th>
-                                        <th>Cantidad</th>
-                                        <th>Subtotal</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="cart-body-cot">
-                                    <tr class="empty-cart">
-                                        <td colspan="5" class="text-center text-muted">No hay elementos en la cotización</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <div class="cart-total">
-                                <h4>Total: Q<span id="cart-total-cot">0.00</span></h4>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('cotizacionModal')">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="guardarCotizacionCompleta()">
-                    <i class="fas fa-save"></i>
-                    Guardar Cotización
-                </button>
-            </div>
-        </div>
-    </div>
+@app.route('/api/eventos/<int:evento_id>', methods=['DELETE'])
+def eliminar_evento(evento_id):
+    """Eliminar un evento y sus relaciones"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el evento existe
+        cursor.execute(
+            "SELECT id_evento FROM eventos WHERE id_evento = %s", 
+            (evento_id,)
+        )
+        
+        if not cursor.fetchone():
+            return jsonify({
+                'success': False, 
+                'message': 'Evento no encontrado'
+            }), 404
+        
+        # PASO 1: Limpiar la referencia en cotizaciones
+        # Poner NULL en id_evento_generado para las cotizaciones que apuntan a este evento
+        cursor.execute("""
+            UPDATE cotizaciones 
+            SET id_evento_generado = NULL, estado = 'enviada'
+            WHERE id_evento_generado = %s
+        """, (evento_id,))
+        
+        # PASO 2: Ahora sí eliminar el evento
+        # PostgreSQL con ON DELETE CASCADE manejará las eliminaciones relacionadas
+        # Esto eliminará automáticamente:
+        # - evento_articulos
+        # - evento_servicios
+        # - pagos
+        # - reportes_problemas
+        cursor.execute(
+            "DELETE FROM eventos WHERE id_evento = %s", 
+            (evento_id,)
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Evento eliminado correctamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en eliminar_evento: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-<!-- MODALES PARA EDITAR Y VISUALIZAR -->
-<!-- ═══════════════════════════════════════════════════════════ -->
 
-<!-- Modal Editar Evento -->
-<div id="editarEventoModal" class="modal">
-    <div class="modal-content" style="max-width: 1200px; width: 95%;">
-        <div class="modal-header">
-            <h2>Editar Evento</h2>
-            <span class="close" onclick="closeModal('editarEventoModal')">&times;</span>
-        </div>
-        <div class="modal-body">
-            <div class="evento-form-container">
-                <!-- Sección 1: Datos generales -->
-                <div class="form-section">
-                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
-                    <form id="editar-evento-form">
-                        <!-- Toggle para cliente -->
-                        <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                            <div style="display: flex; gap: 2rem; align-items: center;">
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
-                                    <input type="radio" name="edit-cliente-tipo" value="existente" checked onchange="toggleEditClienteForm('existente')">
-                                    <span>Seleccionar cliente existente</span>
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
-                                    <input type="radio" name="edit-cliente-tipo" value="nuevo" onchange="toggleEditClienteForm('nuevo')">
-                                    <span>Crear nuevo cliente</span>
-                                </label>
-                            </div>
-                        </div>
+# ===============================================
+# ENDPOINTS PARA COTIZACIONES
+# ===============================================
 
-                        <!-- Cliente existente -->
-                        <div id="edit-cliente-existente-section">
-                            <div class="form-group">
-                                <label>Cliente <span class="required">*</span></label>
-                                <select class="form-control" id="edit-evento-cliente">
-                                    <option value="">Seleccionar cliente...</option>
-                                </select>
-                            </div>
-                        </div>
 
-                        <!-- Nuevo cliente -->
-                        <div id="edit-cliente-nuevo-section" class="hidden">
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label>Nombre del Cliente <span class="required">*</span></label>
-                                    <input type="text" class="form-control" id="edit-nuevo-cliente-nombre" placeholder="Nombre completo">
-                                </div>
-                                <div class="form-group">
-                                    <label>Teléfono</label>
-                                    <input type="text" class="form-control" id="edit-nuevo-cliente-telefono" placeholder="Ej: 1234-5678">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Dirección</label>
-                                <textarea class="form-control" id="edit-nuevo-cliente-direccion" rows="2"></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label>Notas sobre el cliente</label>
-                                <textarea class="form-control" id="edit-nuevo-cliente-notas" rows="2"></textarea>
-                            </div>
-                        </div>
+@app.route('/api/cotizaciones/<int:cotizacion_id>', methods=['DELETE'])
+def eliminar_cotizacion(cotizacion_id):
+    """Eliminar una cotización (solo borradores y rechazadas)"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar estado de la cotización
+        cursor.execute(
+            "SELECT estado FROM cotizaciones WHERE id_cotizacion = %s", 
+            (cotizacion_id,)
+        )
+        resultado = cursor.fetchone()
+        
+        if not resultado:
+            return jsonify({
+                'success': False, 
+                'message': 'Cotización no encontrada'
+            }), 404
+        
+        estado = resultado[0]
+        
+        # Solo permitir eliminar borradores y rechazadas
+        if estado not in ['borrador', 'rechazada']:
+            return jsonify({
+                'success': False, 
+                'message': 'Solo se pueden eliminar cotizaciones en borrador o rechazadas'
+            }), 400
+        
+        # Verificar si ya se convirtió en evento
+        cursor.execute(
+            "SELECT id_evento_generado FROM cotizaciones WHERE id_cotizacion = %s",
+            (cotizacion_id,)
+        )
+        evento_generado = cursor.fetchone()[0]
+        
+        if evento_generado:
+            return jsonify({
+                'success': False,
+                'message': 'No se puede eliminar una cotización que ya se convirtió en evento'
+            }), 400
+        
+        # PostgreSQL con ON DELETE CASCADE manejará las eliminaciones relacionadas
+        # Esto eliminará automáticamente:
+        # - cotizacion_articulos
+        # - cotizacion_servicios
+        cursor.execute(
+            "DELETE FROM cotizaciones WHERE id_cotizacion = %s", 
+            (cotizacion_id,)
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Cotización eliminada correctamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en eliminar_cotizacion: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-                        <!-- Datos del evento -->
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Fecha del Evento <span class="required">*</span></label>
-                                <input type="date" class="form-control" id="edit-evento-fecha" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Hora Inicio</label>
-                                <input type="time" class="form-control" id="edit-evento-hora-inicio">
-                            </div>
-                            <div class="form-group">
-                                <label>Hora Fin</label>
-                                <input type="time" class="form-control" id="edit-evento-hora-fin">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Lugar del Evento</label>
-                            <input type="text" class="form-control" id="edit-evento-lugar">
-                        </div>
-                        <div class="form-group">
-                            <label>Número de Invitados</label>
-                            <input type="number" class="form-control" id="edit-evento-invitados" min="1">
-                        </div>
-                        <div class="form-group">
-                            <label>Notas</label>
-                            <textarea class="form-control" id="edit-evento-notas" rows="3"></textarea>
-                        </div>
-                    </form>
-                </div>
 
-                <!-- Artículos y Servicios -->
-                <div class="form-section">
-                    <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
+# ===============================================
+# ENDPOINTS PARA ARTÍCULOS
+# ===============================================
+
+@app.route('/api/articulos/<int:articulo_id>', methods=['PUT'])
+def actualizar_articulo(articulo_id):
+    """Actualizar información de un artículo"""
+    try:
+        data = request.json
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el artículo existe
+        cursor.execute(
+            "SELECT id_articulo FROM articulos WHERE id_articulo = %s",
+            (articulo_id,)
+        )
+        
+        if not cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': 'Artículo no encontrado'
+            }), 404
+        
+        # Actualizar artículo
+        cursor.execute("""
+            UPDATE articulos 
+            SET codigo = %s, 
+                nombre_articulo = %s, 
+                precio_unitario = %s, 
+                cantidad_total = %s, 
+                descripcion = %s, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_articulo = %s
+        """, (
+            data.get('codigo'),
+            data.get('nombre_articulo'),
+            data.get('precio_unitario'),
+            data.get('cantidad_total'),
+            data.get('descripcion'),
+            articulo_id
+        ))
+        
+        # Actualizar cantidad disponible proporcionalmente
+        # cantidad_disponible = cantidad_total - cantidad_dañada
+        cursor.execute("""
+            UPDATE articulos 
+            SET cantidad_disponible = cantidad_total - COALESCE(cantidad_dañada, 0)
+            WHERE id_articulo = %s
+        """, (articulo_id,))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Artículo actualizado correctamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en actualizar_articulo: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/articulos/<int:articulo_id>/puede-eliminar', methods=['GET'])
+def puede_eliminar_articulo(articulo_id):
+    """Verificar si un artículo puede ser eliminado"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar si está en eventos
+        cursor.execute(
+            "SELECT COUNT(*) FROM evento_articulos WHERE id_articulo = %s", 
+            (articulo_id,)
+        )
+        eventos_count = cursor.fetchone()[0]
+        
+        # Verificar si está en cotizaciones
+        cursor.execute(
+            "SELECT COUNT(*) FROM cotizacion_articulos WHERE id_articulo = %s", 
+            (articulo_id,)
+        )
+        cotizaciones_count = cursor.fetchone()[0]
+        
+        en_uso = eventos_count > 0 or cotizaciones_count > 0
+        
+        return jsonify({
+            'success': True,
+            'en_uso': en_uso,
+            'eventos_count': eventos_count,
+            'cotizaciones_count': cotizaciones_count
+        })
+        
+    except Exception as e:
+        print(f"Error en puede_eliminar_articulo: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/articulos/<int:articulo_id>', methods=['DELETE'])
+def eliminar_articulo(articulo_id):
+    """Eliminar o desactivar un artículo"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el artículo existe
+        cursor.execute(
+            "SELECT id_articulo, nombre_articulo FROM articulos WHERE id_articulo = %s",
+            (articulo_id,)
+        )
+        resultado = cursor.fetchone()
+        
+        if not resultado:
+            return jsonify({
+                'success': False,
+                'message': 'Artículo no encontrado'
+            }), 404
+        
+        # Verificar si está en uso en eventos
+        cursor.execute(
+            "SELECT COUNT(*) FROM evento_articulos WHERE id_articulo = %s", 
+            (articulo_id,)
+        )
+        eventos_count = cursor.fetchone()[0]
+        
+        # Verificar si está en uso en cotizaciones
+        cursor.execute(
+            "SELECT COUNT(*) FROM cotizacion_articulos WHERE id_articulo = %s",
+            (articulo_id,)
+        )
+        cotizaciones_count = cursor.fetchone()[0]
+        
+        en_uso = eventos_count > 0 or cotizaciones_count > 0
+        
+        if en_uso:
+            # Si está en uso, marcarlo como inactivo en lugar de eliminarlo
+            cursor.execute(
+                "UPDATE articulos SET estado = 'inactivo' WHERE id_articulo = %s", 
+                (articulo_id,)
+            )
+            mensaje = f'Artículo marcado como inactivo (usado en {eventos_count} eventos y {cotizaciones_count} cotizaciones)'
+        else:
+            # Si no está en uso, eliminarlo físicamente
+            cursor.execute(
+                "DELETE FROM articulos WHERE id_articulo = %s", 
+                (articulo_id,)
+            )
+            mensaje = 'Artículo eliminado correctamente'
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': mensaje
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en eliminar_articulo: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ===============================================
+# ENDPOINT AUXILIAR - OBTENER ARTÍCULO POR ID
+# ===============================================
+
+@app.route('/api/articulos/<int:articulo_id>', methods=['GET'])
+def obtener_articulo(articulo_id):
+    """Obtener detalles de un artículo específico"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                a.id_articulo,
+                a.codigo,
+                a.nombre_articulo,
+                a.id_categoria,
+                a.id_subcategoria,
+                a.descripcion,
+                a.cantidad_total,
+                a.cantidad_disponible,
+                a.cantidad_dañada,
+                a.precio_unitario,
+                a.costo_reposicion,
+                a.estado,
+                c.nombre as categoria_nombre
+            FROM articulos a
+            LEFT JOIN categorias_articulos c ON a.id_categoria = c.id_categoria
+            WHERE a.id_articulo = %s
+        """, (articulo_id,))
+        
+        result = cursor.fetchone()
+        
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Artículo no encontrado'
+            }), 404
+        
+        columns = [
+            'id_articulo', 'codigo', 'nombre_articulo', 'id_categoria',
+            'id_subcategoria', 'descripcion', 'cantidad_total', 
+            'cantidad_disponible', 'cantidad_dañada', 'precio_unitario',
+            'costo_reposicion', 'estado', 'categoria_nombre'
+        ]
+        articulo = dict(zip(columns, result))
+        
+        return jsonify({
+            'success': True,
+            'articulo': articulo
+        })
+        
+    except Exception as e:
+        print(f"Error en obtener_articulo: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+    
+from datetime import datetime
+import pytz
+
+# Endpoint para actualizar estado global de todos los artículos de un evento
+@app.route('/api/eventos/<int:evento_id>/articulos/estado-global', methods=['PUT'])
+def actualizar_estado_global_articulos(evento_id):
+    """Actualizar el estado de todos los artículos de un evento y manejar stock"""
+    try:
+        data = request.json
+        nuevo_estado = data.get('estado')
+        
+        if not nuevo_estado or nuevo_estado not in ['reservado', 'entregado', 'recogido']:
+            return jsonify({
+                'success': False,
+                'message': 'Estado inválido'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener todos los artículos del evento que NO tienen problemas
+        cursor.execute("""
+            SELECT id_detalle, id_articulo, cantidad_solicitada, estado_articulo
+            FROM evento_articulos
+            WHERE id_evento = %s AND estado_articulo != 'con_problemas'
+        """, (evento_id,))
+        
+        articulos = cursor.fetchall()
+        
+        if not articulos:
+            return jsonify({
+                'success': False,
+                'message': 'No hay artículos en este evento'
+            }), 404
+        
+        # Zona horaria de Guatemala
+        tz_guatemala = pytz.timezone('America/Guatemala')
+        fecha_actual = datetime.now(tz_guatemala)
+        
+        # Actualizar cada artículo
+        for id_detalle, id_articulo, cantidad_solicitada, estado_anterior in articulos:
+            
+            # GESTIÓN DE STOCK SEGÚN CAMBIO DE ESTADO
+            if estado_anterior != nuevo_estado:
+                
+                # Si pasa a ENTREGADO → Descontar del stock
+                if nuevo_estado == 'entregado' and estado_anterior != 'entregado':
+                    cursor.execute("""
+                        UPDATE articulos
+                        SET cantidad_disponible = GREATEST(0, cantidad_disponible - %s)
+                        WHERE id_articulo = %s
+                    """, (cantidad_solicitada, id_articulo))
                     
-                    <div class="section-toggles">
-                        <div class="toggle-item">
-                            <input type="checkbox" id="edit-toggleArticulos" onchange="toggleEditEventoSection('edit-articulos-section')">
-                            <label for="edit-toggleArticulos">Incluir Artículos</label>
-                        </div>
-                        <div class="toggle-item">
-                            <input type="checkbox" id="edit-toggleServicios" onchange="toggleEditEventoSection('edit-servicios-section')">
-                            <label for="edit-toggleServicios">Incluir Servicios</label>
-                        </div>
-                    </div>
-
-                    <div id="edit-articulos-section" class="selection-section hidden">
-                        <h4>Seleccionar Artículos</h4>
-                        <div class="search-bar">
-                            <input type="text" class="form-control" id="edit-search-articulos" placeholder="Buscar...">
-                        </div>
-                        <div class="items-grid" id="edit-articulos-grid"></div>
-                    </div>
-
-                    <div id="edit-servicios-section" class="selection-section hidden">
-                        <h4>Seleccionar Servicios</h4>
-                        <div class="items-grid" id="edit-servicios-grid"></div>
-                    </div>
-                </div>
-
-                <!-- Carrito -->
-                <div class="form-section">
-                    <h3><i class="fas fa-shopping-cart"></i> Resumen del Evento</h3>
-                    <div class="cart-container">
-                        <table class="cart-table">
-                            <thead>
-                                <tr>
-                                    <th>Concepto</th>
-                                    <th>Precio Unitario</th>
-                                    <th>Cantidad</th>
-                                    <th>Subtotal</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="edit-cart-body">
-                                <tr class="empty-cart">
-                                    <td colspan="5" class="text-center text-muted">No hay elementos</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <div class="cart-total">
-                            <h4>Total: Q<span id="edit-cart-total">0.00</span></h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="closeModal('editarEventoModal')">Cancelar</button>
-            <button type="button" class="btn btn-primary" onclick="actualizarEvento()">
-                <i class="fas fa-save"></i> Actualizar Evento
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Visualizar Evento -->
-<div id="visualizarEventoModal" class="modal">
-    <div class="modal-content" style="max-width: 1200px; width: 95%;">
-        <div class="modal-header">
-            <h2>Detalle del Evento</h2>
-            <span class="close" onclick="closeModal('visualizarEventoModal')">&times;</span>
-        </div>
-        <div class="modal-body">
-            <div class="evento-form-container">
-                <!-- Datos generales -->
-                <div class="form-section">
-                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
-                    <div class="view-data-grid">
-                        <div class="view-field">
-                            <label>Cliente:</label>
-                            <span id="view-evento-cliente">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Fecha:</label>
-                            <span id="view-evento-fecha">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Hora Inicio:</label>
-                            <span id="view-evento-hora-inicio">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Hora Fin:</label>
-                            <span id="view-evento-hora-fin">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Lugar:</label>
-                            <span id="view-evento-lugar">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Invitados:</label>
-                            <span id="view-evento-invitados">-</span>
-                        </div>
-                        <div class="view-field" style="grid-column: 1 / -1;">
-                            <label>Notas:</label>
-                            <span id="view-evento-notas">-</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Carrito -->
-                <div class="form-section">
-                    <h3><i class="fas fa-shopping-cart"></i> Artículos y Servicios</h3>
-                    <div class="cart-container">
-                        <table class="cart-table">
-                            <thead>
-                                <tr>
-                                    <th>Concepto</th>
-                                    <th>Precio Unitario</th>
-                                    <th>Cantidad</th>
-                                    <th>Subtotal</th>
-                                </tr>
-                            </thead>
-                            <tbody id="view-cart-body">
-                                <tr class="empty-cart">
-                                    <td colspan="4" class="text-center text-muted">No hay elementos</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <div class="cart-total">
-                            <h4>Total: Q<span id="view-cart-total">0.00</span></h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="closeModal('visualizarEventoModal')">Cerrar</button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Editar Cotización -->
-<div id="editarCotizacionModal" class="modal">
-    <div class="modal-content" style="max-width: 1200px; width: 95%;">
-        <div class="modal-header">
-            <h2>Editar Cotización</h2>
-            <span class="close" onclick="closeModal('editarCotizacionModal')">&times;</span>
-        </div>
-        <div class="modal-body">
-            <div class="evento-form-container">
-                <!-- Datos generales -->
-                <div class="form-section">
-                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
-                    <form id="editar-cotizacion-form">
-                        <!-- Toggle cliente -->
-                        <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                            <div style="display: flex; gap: 2rem; align-items: center;">
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
-                                    <input type="radio" name="edit-cot-cliente-tipo" value="existente" checked onchange="toggleEditCotClienteForm('existente')">
-                                    <span>Cliente existente</span>
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
-                                    <input type="radio" name="edit-cot-cliente-tipo" value="nuevo" onchange="toggleEditCotClienteForm('nuevo')">
-                                    <span>Nuevo cliente</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div id="edit-cot-cliente-existente-section">
-                            <div class="form-group">
-                                <label>Cliente</label>
-                                <select class="form-control" id="edit-cot-cliente">
-                                    <option value="">Seleccionar...</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div id="edit-cot-cliente-nuevo-section" class="hidden">
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label>Nombre del Cliente</label>
-                                    <input type="text" class="form-control" id="edit-cot-nuevo-cliente-nombre">
-                                </div>
-                                <div class="form-group">
-                                    <label>Teléfono</label>
-                                    <input type="text" class="form-control" id="edit-cot-nuevo-cliente-telefono">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Dirección</label>
-                                <textarea class="form-control" id="edit-cot-nuevo-cliente-direccion" rows="2"></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label>Notas</label>
-                                <textarea class="form-control" id="edit-cot-nuevo-cliente-notas" rows="2"></textarea>
-                            </div>
-                        </div>
-
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Fecha del Evento</label>
-                                <input type="date" class="form-control" id="edit-cot-fecha">
-                            </div>
-                            <div class="form-group">
-                                <label>Hora Inicio</label>
-                                <input type="time" class="form-control" id="edit-cot-hora-inicio">
-                            </div>
-                            <div class="form-group">
-                                <label>Hora Fin</label>
-                                <input type="time" class="form-control" id="edit-cot-hora-fin">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Lugar</label>
-                            <input type="text" class="form-control" id="edit-cot-lugar">
-                        </div>
-                        <div class="form-group">
-                            <label>Invitados</label>
-                            <input type="number" class="form-control" id="edit-cot-invitados" min="1">
-                        </div>
-                        <div class="form-group">
-                            <label>Notas</label>
-                            <textarea class="form-control" id="edit-cot-notas" rows="3"></textarea>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Artículos y Servicios -->
-                <div class="form-section">
-                    <h3><i class="fas fa-boxes"></i> Artículos y Servicios</h3>
+                    # Registrar movimiento de salida
+                    cursor.execute("""
+                        INSERT INTO movimientos_inventario 
+                        (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                        VALUES (%s, %s, 'entrega', %s, 'Sistema', 'Artículos entregados al cliente')
+                    """, (id_articulo, evento_id, cantidad_solicitada))
                     
-                    <div class="section-toggles">
-                        <div class="toggle-item">
-                            <input type="checkbox" id="edit-cot-toggleArticulos" onchange="toggleEditCotSection('edit-cot-articulos-section')">
-                            <label for="edit-cot-toggleArticulos">Incluir Artículos</label>
-                        </div>
-                        <div class="toggle-item">
-                            <input type="checkbox" id="edit-cot-toggleServicios" onchange="toggleEditCotSection('edit-cot-servicios-section')">
-                            <label for="edit-cot-toggleServicios">Incluir Servicios</label>
-                        </div>
-                    </div>
-
-                    <div id="edit-cot-articulos-section" class="selection-section hidden">
-                        <h4>Artículos</h4>
-                        <div class="search-bar">
-                            <input type="text" class="form-control" id="edit-cot-search-articulos" placeholder="Buscar...">
-                        </div>
-                        <div class="items-grid" id="edit-cot-articulos-grid"></div>
-                    </div>
-
-                    <div id="edit-cot-servicios-section" class="selection-section hidden">
-                        <h4>Servicios</h4>
-                        <div class="items-grid" id="edit-cot-servicios-grid"></div>
-                    </div>
-                </div>
-
-                <!-- Carrito -->
-                <div class="form-section">
-                    <h3><i class="fas fa-shopping-cart"></i> Resumen</h3>
-                    <div class="cart-container">
-                        <table class="cart-table">
-                            <thead>
-                                <tr>
-                                    <th>Concepto</th>
-                                    <th>Precio</th>
-                                    <th>Cantidad</th>
-                                    <th>Subtotal</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="edit-cot-cart-body">
-                                <tr class="empty-cart">
-                                    <td colspan="5" class="text-center text-muted">No hay elementos</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <div class="cart-total">
-                            <h4>Total: Q<span id="edit-cot-cart-total">0.00</span></h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="closeModal('editarCotizacionModal')">Cancelar</button>
-            <button type="button" class="btn btn-primary" onclick="actualizarCotizacion()">
-                <i class="fas fa-save"></i> Actualizar Cotización
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Visualizar Cotización -->
-<div id="visualizarCotizacionModal" class="modal">
-    <div class="modal-content" style="max-width: 1200px; width: 95%;">
-        <div class="modal-header">
-            <h2>Detalle de Cotización</h2>
-            <span class="close" onclick="closeModal('visualizarCotizacionModal')">&times;</span>
-        </div>
-        <div class="modal-body">
-            <div class="evento-form-container">
-                <!-- Datos -->
-                <div class="form-section">
-                    <h3><i class="fas fa-info-circle"></i> Datos Generales</h3>
-                    <div class="view-data-grid">
-                        <div class="view-field">
-                            <label>Cliente:</label>
-                            <span id="view-cot-cliente">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Fecha:</label>
-                            <span id="view-cot-fecha">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Hora Inicio:</label>
-                            <span id="view-cot-hora-inicio">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Hora Fin:</label>
-                            <span id="view-cot-hora-fin">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Lugar:</label>
-                            <span id="view-cot-lugar">-</span>
-                        </div>
-                        <div class="view-field">
-                            <label>Invitados:</label>
-                            <span id="view-cot-invitados">-</span>
-                        </div>
-                        <div class="view-field" style="grid-column: 1 / -1;">
-                            <label>Notas:</label>
-                            <span id="view-cot-notas">-</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Carrito -->
-                <div class="form-section">
-                    <h3><i class="fas fa-shopping-cart"></i> Artículos y Servicios</h3>
-                    <div class="cart-container">
-                        <table class="cart-table">
-                            <thead>
-                                <tr>
-                                    <th>Concepto</th>
-                                    <th>Precio</th>
-                                    <th>Cantidad</th>
-                                    <th>Subtotal</th>
-                                </tr>
-                            </thead>
-                            <tbody id="view-cot-cart-body">
-                                <tr class="empty-cart">
-                                    <td colspan="4" class="text-center text-muted">No hay elementos</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <div class="cart-total">
-                            <h4>Total: Q<span id="view-cot-cart-total">0.00</span></h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="closeModal('visualizarCotizacionModal')">Cerrar</button>
-        </div>
-    </div>
-</div>
-
-    <!-- Modal Nuevo Artículo -->
-    <div id="articuloModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Nuevo Artículo</h2>
-                <span class="close" onclick="closeModal('articuloModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="articulo-form">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Código</label>
-                            <input type="text" class="form-control" id="articulo-codigo" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Nombre del Artículo</label>
-                            <input type="text" class="form-control" id="articulo-nombre" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Categoría</label>
-                            <select class="form-control" id="articulo-categoria" required>
-                                <option value="">Seleccionar categoría...</option>
-                                <option value="1">Mobiliario</option>
-                                <option value="2">Cristalería</option>
-                                <option value="3">Decoración</option>
-                                <option value="4">Audio/Video</option>
-                                <option value="5">Estructuras</option>
-                                <option value="6">Cocina</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Precio Unitario</label>
-                            <input type="number" class="form-control" id="articulo-precio" step="0.01" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Cantidad Total</label>
-                            <input type="number" class="form-control" id="articulo-cantidad" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Costo de Reposición</label>
-                            <input type="number" class="form-control" id="articulo-costo" step="0.01" min="0">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Descripción</label>
-                        <textarea class="form-control" id="articulo-descripcion" rows="3"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('articuloModal')">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="guardarArticulo()">
-                    <i class="fas fa-save"></i>
-                    Guardar Artículo
-                </button>
-            </div>
-        </div>
-    </div>
-
-
-    <!-- Modal Convertir Cotización a Evento -->
-    <div id="convertirEventoModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Convertir a Evento</h2>
-                <span class="close" onclick="closeModal('convertirEventoModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="convertir-evento-form">
-                    <input type="hidden" id="convertir-cotizacion-id">
-                    <div class="form-group">
-                        <label>¿Confirmar conversión de cotización a evento?</label>
-                        <p class="text-muted">Esta acción creará un nuevo evento basado en los datos de la cotización.</p>
-                    </div>
-                    <div id="convertir-evento-preview">
-                        <!-- Preview content will be loaded -->
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('convertirEventoModal')">Cancelar</button>
-                <button type="button" class="btn btn-success" onclick="confirmarConversion()">
-                    <i class="fas fa-check"></i>
-                    Convertir a Evento
-                </button>
-            </div>
-        </div>
-    </div>
-
-
-     <!-- Modal Reportar Problemas Múltiples -->
-    <div id="reportarProblemasMultiplesModal" class="modal">
-        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header">
-                <h2>Reportar Problemas del Evento</h2>
-                <span class="close" onclick="closeReportarProblemasMultiples()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <!-- Alerta informativa -->
-                <div style="background: #EFF6FF; border-left: 4px solid #3B82F6; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
-                    <div style="display: flex; align-items: start; gap: 0.75rem;">
-                        <i class="fas fa-info-circle" style="color: #3B82F6; font-size: 1.25rem; margin-top: 2px;"></i>
-                        <div>
-                            <strong style="color: #1E40AF;">Artículos con Problemas (<span id="count-articulos-problema">0</span> seleccionados)</strong>
-                            <p style="margin: 0.25rem 0 0 0; color: #1E40AF; font-size: 0.9rem;">Complete la información para cada artículo que presenta problemas</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Lista de artículos con problemas -->
-                <div id="lista-articulos-problemas" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <!-- Se llenará dinámicamente -->
-                </div>
-
-                <!-- Costo total -->
-                <div style="background: #FEF2F2; border: 2px solid #FCA5A5; padding: 1.25rem; border-radius: 8px; margin-top: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <strong style="color: #991B1B; font-size: 1.1rem;">COSTO TOTAL DE PROBLEMAS:</strong>
-                        <span id="costo-total-problemas" style="color: #991B1B; font-size: 1.5rem; font-weight: 700;">Q0.00</span>
-                    </div>
-                </div>
-
-                <!-- Nota informativa -->
-                <div style="background: #FFFBEB; border-left: 4px solid #F59E0B; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-                    <div style="display: flex; align-items: start; gap: 0.75rem;">
-                        <i class="fas fa-lightbulb" style="color: #F59E0B; font-size: 1.1rem; margin-top: 2px;"></i>
-                        <p style="margin: 0; color: #92400E; font-size: 0.9rem;">
-                            <strong>Nota:</strong> Complete el tipo de problema y responsable para cada artículo. Los costos se calculan automáticamente según el precio de alquiler.
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeReportarProblemasMultiples()">
-                    Cancelar
-                </button>
-                <button type="button" class="btn btn-primary" onclick="guardarProblemasMultiples()" style="background: linear-gradient(135deg, #EF4444, #DC2626);">
-                    <i class="fas fa-save"></i>
-                    Guardar y Generar PDF
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Configuración Reporte de Eventos -->
-    <div id="configEventosModal" class="modal">
-        <div class="modal-content" style="max-width: 900px;">
-            <div class="modal-header">
-                <h2><i class="fas fa-calendar-alt"></i> Configurar Reporte de Eventos</h2>
-                <span class="close" onclick="closeModal('configEventosModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <!-- Período -->
-                <div class="config-reporte-section">
-                    <h4><i class="fas fa-calendar"></i> Seleccionar Período</h4>
+                    # Actualizar cantidad_entregada en evento_articulos
+                    cursor.execute("""
+                        UPDATE evento_articulos
+                        SET cantidad_entregada = %s
+                        WHERE id_detalle = %s
+                    """, (cantidad_solicitada, id_detalle))
+                
+                # Si pasa a RECOGIDO → Reintegrar al stock
+                elif nuevo_estado == 'recogido' and estado_anterior == 'entregado':
+                    cursor.execute("""
+                        UPDATE articulos
+                        SET cantidad_disponible = cantidad_disponible + %s
+                        WHERE id_articulo = %s
+                    """, (cantidad_solicitada, id_articulo))
                     
-                    <div class="periodo-rapido">
-                        <button class="periodo-btn" onclick="setPeriodoRapido('hoy', 'eventos')">Hoy</button>
-                        <button class="periodo-btn" onclick="setPeriodoRapido('semana', 'eventos')">Esta Semana</button>
-                        <button class="periodo-btn" onclick="setPeriodoRapido('mes', 'eventos')">Este Mes</button>
-                        <button class="periodo-btn" onclick="setPeriodoRapido('trimestre', 'eventos')">Trimestre</button>
-                        <button class="periodo-btn" onclick="setPeriodoRapido('anio', 'eventos')">Este Año</button>
-                        <button class="periodo-btn active" onclick="setPeriodoRapido('personalizado', 'eventos')">Personalizado</button>
-                    </div>
-
-                    <div class="form-grid" id="fechas-personalizadas-eventos">
-                        <div class="form-group">
-                            <label>Fecha Inicio</label>
-                            <input type="date" class="form-control" id="config-eventos-fecha-inicio">
-                        </div>
-                        <div class="form-group">
-                            <label>Fecha Fin</label>
-                            <input type="date" class="form-control" id="config-eventos-fecha-fin">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Filtros -->
-                <div class="config-reporte-section">
-                    <h4><i class="fas fa-filter"></i> Filtros Adicionales</h4>
+                    # Registrar movimiento de entrada
+                    cursor.execute("""
+                        INSERT INTO movimientos_inventario 
+                        (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                        VALUES (%s, %s, 'recogida', %s, 'Sistema', 'Artículos recogidos del cliente')
+                    """, (id_articulo, evento_id, cantidad_solicitada))
                     
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Estado del Evento</label>
-                            <select class="form-control" id="config-eventos-estado">
-                                <option value="">Todos los estados</option>
-                                <option value="reservado">Reservado</option>
-                                <option value="pendiente_pago">Pendiente de Pago</option>
-                                <option value="cancelado">Cancelado</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Cliente (Opcional)</label>
-                            <select class="form-control" id="config-eventos-cliente">
-                                <option value="">Todos los clientes</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="config-eventos-detallado">
-                            <span>Incluir desglose detallado de artículos y servicios</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Previsualización -->
-                <div class="config-reporte-section">
-                    <h4><i class="fas fa-eye"></i> Vista Previa</h4>
-                    <div class="preview-stats" id="preview-eventos-stats">
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Total Eventos</div>
-                        </div>
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Ingresos</div>
-                        </div>
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Pagado</div>
-                        </div>
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Pendiente</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('configEventosModal')">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="generarReporteEventosConfig()">
-                    <i class="fas fa-file-pdf"></i> Generar PDF
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Configuración Reporte de Inventario -->
-    <div id="configInventarioModal" class="modal">
-        <div class="modal-content" style="max-width: 800px;">
-            <div class="modal-header">
-                <h2><i class="fas fa-boxes"></i> Configurar Reporte de Inventario</h2>
-                <span class="close" onclick="closeModal('configInventarioModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <!-- Opciones -->
-                <div class="config-reporte-section">
-                    <h4><i class="fas fa-sliders-h"></i> Opciones del Reporte</h4>
+                    # Actualizar cantidad_recogida en evento_articulos
+                    cursor.execute("""
+                        UPDATE evento_articulos
+                        SET cantidad_recogida = %s
+                        WHERE id_detalle = %s
+                    """, (cantidad_solicitada, id_detalle))
+                
+                # Si vuelve a RESERVADO desde ENTREGADO → Reintegrar al stock
+                elif nuevo_estado == 'reservado' and estado_anterior == 'entregado':
+                    cursor.execute("""
+                        UPDATE articulos
+                        SET cantidad_disponible = cantidad_disponible + %s
+                        WHERE id_articulo = %s
+                    """, (cantidad_solicitada, id_articulo))
                     
-                    <div class="form-group">
-                        <label>Categoría</label>
-                        <select class="form-control" id="config-inventario-categoria">
-                            <option value="">Todas las categorías</option>
-                            <option value="1">Mobiliario</option>
-                            <option value="2">Cristalería</option>
-                            <option value="3">Decoración</option>
-                            <option value="4">Audio/Video</option>
-                            <option value="5">Estructuras</option>
-                            <option value="6">Cocina</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="config-inventario-stock-bajo" checked>
-                            <span>Destacar artículos con stock bajo (menos de 10)</span>
-                        </label>
-                    </div>
-
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="config-inventario-valorizacion" checked>
-                            <span>Incluir valorización del inventario</span>
-                        </label>
-                    </div>
-
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="config-inventario-daniados">
-                            <span>Mostrar artículos dañados</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Previsualización -->
-                <div class="config-reporte-section">
-                    <h4><i class="fas fa-eye"></i> Vista Previa</h4>
-                    <div class="preview-stats" id="preview-inventario-stats">
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Total Artículos</div>
-                        </div>
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Stock Total</div>
-                        </div>
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Disponibles</div>
-                        </div>
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Valor Total</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('configInventarioModal')">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="generarReporteInventarioConfig()">
-                    <i class="fas fa-file-pdf"></i> Generar PDF
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Configuración Reporte de Problemas -->
-    <div id="configProblemasModal" class="modal">
-        <div class="modal-content" style="max-width: 900px;">
-            <div class="modal-header">
-                <h2><i class="fas fa-exclamation-triangle"></i> Configurar Reporte de Problemas</h2>
-                <span class="close" onclick="closeModal('configProblemasModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <!-- Período -->
-                <div class="config-reporte-section">
-                    <h4><i class="fas fa-calendar"></i> Seleccionar Período</h4>
+                    # Registrar movimiento
+                    cursor.execute("""
+                        INSERT INTO movimientos_inventario 
+                        (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                        VALUES (%s, %s, 'entrada', %s, 'Sistema', 'Revertido a reservado desde entregado')
+                    """, (id_articulo, evento_id, cantidad_solicitada))
                     
-                    <div class="periodo-rapido">
-                        <button class="periodo-btn" onclick="setPeriodoRapido('hoy', 'problemas')">Hoy</button>
-                        <button class="periodo-btn" onclick="setPeriodoRapido('semana', 'problemas')">Esta Semana</button>
-                        <button class="periodo-btn active" onclick="setPeriodoRapido('mes', 'problemas')">Este Mes</button>
-                        <button class="periodo-btn" onclick="setPeriodoRapido('trimestre', 'problemas')">Trimestre</button>
-                        <button class="periodo-btn" onclick="setPeriodoRapido('anio', 'problemas')">Este Año</button>
-                        <button class="periodo-btn" onclick="setPeriodoRapido('personalizado', 'problemas')">Personalizado</button>
-                    </div>
+                    # Resetear cantidad_entregada
+                    cursor.execute("""
+                        UPDATE evento_articulos
+                        SET cantidad_entregada = 0
+                        WHERE id_detalle = %s
+                    """, (id_detalle,))
+            
+            # ACTUALIZAR ESTADO Y FECHA
+            if nuevo_estado == 'entregado':
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET estado_articulo = %s,
+                        fecha_entrega = %s
+                    WHERE id_detalle = %s
+                """, (nuevo_estado, fecha_actual, id_detalle))
+                
+            elif nuevo_estado == 'recogido':
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET estado_articulo = %s,
+                        fecha_devolucion = %s
+                    WHERE id_detalle = %s
+                """, (nuevo_estado, fecha_actual, id_detalle))
+                
+            else:  # reservado
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET estado_articulo = %s,
+                        fecha_entrega = NULL,
+                        fecha_devolucion = NULL
+                    WHERE id_detalle = %s
+                """, (nuevo_estado, id_detalle))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Estado actualizado a {nuevo_estado} para todos los artículos',
+            'articulos_actualizados': len(articulos)
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en actualizar_estado_global_articulos: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-                    <div class="form-grid" id="fechas-personalizadas-problemas" style="display: none;">
-                        <div class="form-group">
-                            <label>Fecha Inicio</label>
-                            <input type="date" class="form-control" id="config-problemas-fecha-inicio">
-                        </div>
-                        <div class="form-group">
-                            <label>Fecha Fin</label>
-                            <input type="date" class="form-control" id="config-problemas-fecha-fin">
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Filtros -->
-                <div class="config-reporte-section">
-                    <h4><i class="fas fa-filter"></i> Filtros</h4>
-                    
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Tipo de Problema</label>
-                            <select class="form-control" id="config-problemas-tipo">
-                                <option value="">Todos los tipos</option>
-                                <option value="roto">Roto</option>
-                                <option value="perdido">Perdido</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Responsable</label>
-                            <select class="form-control" id="config-problemas-responsable">
-                                <option value="">Todos</option>
-                                <option value="Cliente">Cliente</option>
-                                <option value="Empresa">Empresa</option>
-                                <option value="Tercero">Tercero</option>
-                                <option value="Desconocido">Desconocido</option>
-                            </select>
-                        </div>
-                    </div>
+# Endpoint para obtener registro de estados con fechas
+@app.route('/api/eventos/<int:evento_id>/estados-registro', methods=['GET'])
+def obtener_estados_registro(evento_id):
+    """Obtener el registro de fechas de cambios de estado"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener las fechas más recientes de cada estado
+        # Nota: No hay campo created_at en evento_articulos, así que usamos fecha del evento para reservado
+        cursor.execute("""
+            SELECT 
+                e.created_at as fecha_reservado,
+                MAX(ea.fecha_entrega) as fecha_entregado,
+                MAX(ea.fecha_devolucion) as fecha_recogido
+            FROM eventos e
+            LEFT JOIN evento_articulos ea ON e.id_evento = ea.id_evento
+            WHERE e.id_evento = %s
+            GROUP BY e.created_at
+        """, (evento_id,))
+        
+        result = cursor.fetchone()
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'estados': {
+                    'reservado': result[0].isoformat() if result[0] else None,
+                    'entregado': result[1].isoformat() if result[1] else None,
+                    'recogido': result[2].isoformat() if result[2] else None
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'estados': {
+                    'reservado': None,
+                    'entregado': None,
+                    'recogido': None
+                }
+            })
+        
+    except Exception as e:
+        print(f"Error en obtener_estados_registro: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="config-problemas-graficos" checked>
-                            <span>Incluir análisis gráfico de costos</span>
-                        </label>
-                    </div>
-                </div>
 
-                <!-- Previsualización -->
-                <div class="config-reporte-section">
-                    <h4><i class="fas fa-eye"></i> Vista Previa</h4>
-                    <div class="preview-stats" id="preview-problemas-stats">
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Total Problemas</div>
-                        </div>
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Costo Total</div>
-                        </div>
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Rotos</div>
-                        </div>
-                        <div class="preview-stat">
-                            <div class="preview-stat-number">-</div>
-                            <div class="preview-stat-label">Perdidos</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('configProblemasModal')">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="generarReporteProblemasConfig()">
-                    <i class="fas fa-file-pdf"></i> Generar PDF
-                </button>
-            </div>
-        </div>
-    </div>
-<!-- Orden de carga importante -->
-<script src="static/js/config.js"></script>
-<script src="static/js/utils.js"></script>
-<script src="static/js/pagination.js"></script>
-<script src="static/js/modal-manager.js"></script>
-<script src="static/js/navigation.js"></script>
-<script src="static/js/clientes-module.js"></script>
-<script src="static/js/articulos-module.js"></script>
-<script src="static/js/inventario-module.js"></script>
-<script src="static/js/eventos-module.js"></script>
-<script src="static/js/cotizaciones-module.js"></script>
-<script src="static/js/calendario-module.js"></script>
-<script src="static/js/perfil-module.js"></script>
-<script src="static/js/reportes-module.js"></script>
-<script src="static/js/dashboard-module.js"></script>
-<script src="static/js/main.js"></script>
-</body>
-</html>
+# Endpoint para registrar problemas de artículos
+@app.route('/api/problemas/articulo', methods=['POST'])
+def registrar_problema_articulo():
+    """Registrar un problema con un artículo del evento en reportes_problemas y actualizar stock"""
+    try:
+        data = request.json
+        
+        id_evento = data.get('id_evento')
+        id_articulo = data.get('id_articulo')
+        id_detalle = data.get('id_detalle')
+        tipo_problema = data.get('tipo_problema')
+        descripcion = data.get('descripcion')
+        cantidad_afectada = data.get('cantidad_afectada', 1)
+        costo_estimado = data.get('costo_estimado', 0)
+        
+        if not all([id_evento, id_articulo, tipo_problema, descripcion]):
+            return jsonify({
+                'success': False,
+                'message': 'Faltan datos requeridos'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Zona horaria de Guatemala
+        tz_guatemala = pytz.timezone('America/Guatemala')
+        fecha_actual = datetime.now(tz_guatemala)
+        
+        # Mapeo de tipos de problema del modal a la base de datos
+        # Modal: roto, perdido, incompleto, sucio, otro
+        # BD: dañado, perdido, equivocado, faltante, roto
+        mapeo_tipos = {
+            'roto': 'roto',
+            'perdido': 'perdido'
+        }
+        
+        tipo_problema_bd = mapeo_tipos.get(tipo_problema, 'dañado')
+        
+        # Obtener información del usuario actual (si está en sesión)
+        user_id = session.get('user_id', None)
+        
+        # Insertar en reportes_problemas (tabla existente)
+        cursor.execute("""
+            INSERT INTO reportes_problemas 
+            (id_evento, id_articulo, tipo_problema, descripcion_problema, 
+             costo_problema, estado_reporte, fecha_reporte, reportado_por)
+            VALUES (%s, %s, %s, %s, %s, 'abierto', %s, %s)
+            RETURNING id_reporte
+        """, (
+            id_evento, id_articulo, tipo_problema_bd, 
+            f"{descripcion} (Cantidad afectada: {cantidad_afectada})",
+            costo_estimado, fecha_actual, user_id
+        ))
+        
+        id_reporte = cursor.fetchone()[0]
+        
+        # Actualizar el stock del artículo según el tipo de problema
+        if tipo_problema in ['perdido', 'roto']:
+            # Descontar del stock disponible y agregar a cantidad dañada
+            cursor.execute("""
+                UPDATE articulos
+                SET cantidad_disponible = GREATEST(0, cantidad_disponible - %s),
+                    cantidad_dañada = cantidad_dañada + %s
+                WHERE id_articulo = %s
+            """, (cantidad_afectada, cantidad_afectada, id_articulo))
+            
+            # Registrar movimiento de inventario
+            cursor.execute("""
+                INSERT INTO movimientos_inventario 
+                (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                id_articulo, id_evento, tipo_problema_bd, 
+                cantidad_afectada, 'Sistema', 
+                f"Problema registrado: {tipo_problema} - {descripcion}"
+            ))
+        
+        # Actualizar el detalle del evento con la cantidad dañada/perdida
+        if tipo_problema == 'perdido':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET cantidad_perdida = cantidad_perdida + %s
+                WHERE id_detalle = %s
+            """, (cantidad_afectada, id_detalle))
+        elif tipo_problema == 'roto':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET cantidad_dañada = cantidad_dañada + %s
+                WHERE id_detalle = %s
+            """, (cantidad_afectada, id_detalle))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Problema registrado correctamente y stock actualizado',
+            'id_reporte': id_reporte,
+            'stock_actualizado': True
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en registrar_problema_articulo: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# Endpoint para actualizar estado de artículo individual
+@app.route('/api/eventos/<int:evento_id>/articulo/<int:detalle_id>/estado', methods=['PUT'])
+def actualizar_estado_articulo_individual(evento_id, detalle_id):
+    """Actualizar el estado de un artículo específico del evento y manejar stock"""
+    try:
+        data = request.json
+        nuevo_estado = data.get('estado')
+        id_articulo = data.get('id_articulo')
+        
+        if not nuevo_estado or nuevo_estado not in ['reservado', 'entregado', 'recogido', 'con_problemas']:
+            return jsonify({
+                'success': False,
+                'message': 'Estado inválido'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el detalle existe
+        cursor.execute("""
+            SELECT id_detalle, id_articulo, cantidad_solicitada, estado_articulo
+            FROM evento_articulos
+            WHERE id_detalle = %s AND id_evento = %s
+        """, (detalle_id, evento_id))
+        
+        articulo = cursor.fetchone()
+        
+        if not articulo:
+            return jsonify({
+                'success': False,
+                'message': 'Artículo no encontrado en este evento'
+            }), 404
+        
+        id_detalle, id_articulo_db, cantidad_solicitada, estado_anterior = articulo
+        
+        # Zona horaria de Guatemala
+        tz_guatemala = pytz.timezone('America/Guatemala')
+        fecha_actual = datetime.now(tz_guatemala)
+        
+        # GESTIÓN DE STOCK SEGÚN CAMBIO DE ESTADO
+        if estado_anterior != nuevo_estado and nuevo_estado != 'con_problemas':
+            
+            # Si pasa a ENTREGADO → Descontar del stock
+            if nuevo_estado == 'entregado' and estado_anterior != 'entregado':
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = GREATEST(0, cantidad_disponible - %s)
+                    WHERE id_articulo = %s
+                """, (cantidad_solicitada, id_articulo_db))
+                
+                # Registrar movimiento de salida
+                cursor.execute("""
+                    INSERT INTO movimientos_inventario 
+                    (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                    VALUES (%s, %s, 'entrega', %s, 'Sistema', 'Artículo entregado al cliente')
+                """, (id_articulo_db, evento_id, cantidad_solicitada))
+                
+                # Actualizar cantidad_entregada
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET cantidad_entregada = %s
+                    WHERE id_detalle = %s
+                """, (cantidad_solicitada, id_detalle))
+            
+            # Si pasa a RECOGIDO → Reintegrar al stock
+            elif nuevo_estado == 'recogido' and estado_anterior == 'entregado':
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = cantidad_disponible + %s
+                    WHERE id_articulo = %s
+                """, (cantidad_solicitada, id_articulo_db))
+                
+                # Registrar movimiento de entrada
+                cursor.execute("""
+                    INSERT INTO movimientos_inventario 
+                    (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                    VALUES (%s, %s, 'recogida', %s, 'Sistema', 'Artículo recogido del cliente')
+                """, (id_articulo_db, evento_id, cantidad_solicitada))
+                
+                # Actualizar cantidad_recogida
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET cantidad_recogida = %s
+                    WHERE id_detalle = %s
+                """, (cantidad_solicitada, id_detalle))
+            
+            # Si vuelve a RESERVADO desde ENTREGADO → Reintegrar al stock
+            elif nuevo_estado == 'reservado' and estado_anterior == 'entregado':
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = cantidad_disponible + %s
+                    WHERE id_articulo = %s
+                """, (cantidad_solicitada, id_articulo_db))
+                
+                # Registrar movimiento
+                cursor.execute("""
+                    INSERT INTO movimientos_inventario 
+                    (id_articulo, id_evento, tipo_movimiento, cantidad, responsable, observaciones)
+                    VALUES (%s, %s, 'entrada', %s, 'Sistema', 'Revertido a reservado desde entregado')
+                """, (id_articulo_db, evento_id, cantidad_solicitada))
+                
+                # Resetear cantidad_entregada
+                cursor.execute("""
+                    UPDATE evento_articulos
+                    SET cantidad_entregada = 0
+                    WHERE id_detalle = %s
+                """, (id_detalle,))
+        
+        # ACTUALIZAR ESTADO Y FECHA
+        if nuevo_estado == 'entregado':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = %s,
+                    fecha_entrega = %s
+                WHERE id_detalle = %s
+            """, (nuevo_estado, fecha_actual, detalle_id))
+            
+        elif nuevo_estado == 'recogido':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = %s,
+                    fecha_devolucion = %s
+                WHERE id_detalle = %s
+            """, (nuevo_estado, fecha_actual, detalle_id))
+            
+        elif nuevo_estado == 'con_problemas':
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = %s
+                WHERE id_detalle = %s
+            """, (nuevo_estado, detalle_id))
+            
+        else:  # reservado
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = %s,
+                    fecha_entrega = NULL,
+                    fecha_devolucion = NULL
+                WHERE id_detalle = %s
+            """, (nuevo_estado, detalle_id))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Estado actualizado a {nuevo_estado}'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en actualizar_estado_articulo_individual: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+    
+@app.route('/api/cotizaciones/<int:cotizacion_id>/aprobar', methods=['POST'])
+def aprobar_cotizacion_directa(cotizacion_id):
+    """Aprobar cotización y convertirla en evento"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Obtener cotización con el cliente
+        cursor.execute("""
+            SELECT id_cotizacion, numero_cotizacion, id_cliente, id_empleado, 
+                   fecha_evento, hora_inicio, hora_fin, lugar_evento, 
+                   numero_invitados, monto_total, descuento, estado, 
+                   fecha_cotizacion, notas
+            FROM cotizaciones 
+            WHERE id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        cotizacion = cursor.fetchone()
+        if not cotizacion:
+            return jsonify({'success': False, 'message': 'Cotización no encontrada'}), 404
+        
+        # Extraer valores de la cotización
+        id_cliente = cotizacion[2]  # id_cliente
+        id_empleado = cotizacion[3]  # id_empleado
+        fecha_evento = cotizacion[4]
+        hora_inicio = cotizacion[5]
+        hora_fin = cotizacion[6]
+        lugar_evento = cotizacion[7]
+        numero_invitados = cotizacion[8]
+        monto_total = cotizacion[9]
+        notas = cotizacion[13]
+        
+        # Validar que la cotización tenga un cliente asignado
+        if not id_cliente:
+            return jsonify({
+                'success': False,
+                'message': 'La cotización debe tener un cliente asignado para ser aprobada'
+            }), 400
+        
+        # Generar número de evento
+        cursor.execute("SELECT COUNT(*) FROM eventos WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)")
+        count = cursor.fetchone()[0] + 1
+        numero_evento = f"EVT-{datetime.now().year}-{count:04d}"
+        
+        # Crear evento desde la cotización
+        cursor.execute("""
+            INSERT INTO eventos (numero_evento, id_cotizacion, id_cliente, id_empleado_asignado,
+                               fecha_evento, hora_inicio, hora_fin, lugar_evento, numero_invitados,
+                               estado, monto_total, notas)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'confirmado', %s, %s)
+            RETURNING id_evento
+        """, (
+            numero_evento,
+            cotizacion_id,
+            id_cliente,
+            id_empleado,
+            fecha_evento,
+            hora_inicio,
+            hora_fin,
+            lugar_evento,
+            numero_invitados,
+            monto_total,
+            notas
+        ))
+        
+        evento_id = cursor.fetchone()[0]
+        
+        # Copiar artículos de cotización a evento
+        cursor.execute("""
+            SELECT id_articulo, cantidad, precio_unitario
+            FROM cotizacion_articulos
+            WHERE id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        articulos_cot = cursor.fetchall()
+        for art in articulos_cot:
+            cursor.execute("""
+                INSERT INTO evento_articulos (id_evento, id_articulo, cantidad_solicitada, 
+                                            precio_unitario, estado_articulo)
+                VALUES (%s, %s, %s, %s, 'reservado')
+            """, (evento_id, art[0], art[1], art[2]))
+        
+        # Copiar servicios
+        cursor.execute("""
+            SELECT id_servicio, cantidad_horas, precio_unitario
+            FROM cotizacion_servicios
+            WHERE id_cotizacion = %s
+        """, (cotizacion_id,))
+        
+        servicios_cot = cursor.fetchall()
+        for serv in servicios_cot:
+            cursor.execute("""
+                INSERT INTO evento_servicios (id_evento, id_servicio, horas_contratadas, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (evento_id, serv[0], serv[1], serv[2]))
+        
+        # Actualizar estado de cotización
+        cursor.execute("""
+            UPDATE cotizaciones 
+           SET estado = 'aprobada', id_evento_generado = %s
+            WHERE id_cotizacion = %s
+        """, (evento_id, cotizacion_id))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cotización aprobada y evento creado exitosamente',
+            'evento_id': evento_id,
+            'numero_evento': numero_evento
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error aprobando cotización: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# ====================================================================
+# ENDPOINT PRINCIPAL: REPORTAR PROBLEMAS EN LOTE (CORREGIDO)
+# ====================================================================
+from flask import request, jsonify, session
+from datetime import datetime
+import traceback
+
+@app.route('/api/eventos/<int:id_evento>/reportar-problemas-lote', methods=['POST'])
+def reportar_problemas_lote(id_evento):
+    """
+    Registra múltiples problemas de artículos en un solo request
+    """
+    try:
+        # =============================
+        # 1. Verificar usuario autenticado
+        # =============================
+        if 'user' not in session:
+            return jsonify({'success': False, 'message': 'Usuario no autenticado'}), 401
+
+        user_id = session.get('user_id')
+        username = session.get('user')
+        user_type = session.get('user_type')
+
+        if not user_id or not username:
+            return jsonify({'success': False, 'message': 'Sesión inválida o incompleta'}), 400
+
+        print(f"✅ Usuario autenticado: {username} (ID {user_id}, tipo {user_type})")
+
+        # =============================
+        # 2. Leer datos del cuerpo
+        # =============================
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({'success': False, 'message': 'No se recibieron datos válidos'}), 400
+
+        problemas = data.get('problemas', [])
+        costo_total = float(data.get('costo_total', 0))
+
+        if not isinstance(problemas, list) or len(problemas) == 0:
+            return jsonify({'success': False, 'message': 'Debe incluir al menos un problema'}), 400
+
+        cursor = db.session.connection().connection.cursor()
+
+        # =============================
+        # 3. Validar que el evento existe
+        # =============================
+        cursor.execute("""
+            SELECT id_evento, numero_evento, id_cliente, fecha_evento, lugar_evento
+            FROM eventos
+            WHERE id_evento = %s
+        """, (id_evento,))
+        evento = cursor.fetchone()
+
+        if not evento:
+            return jsonify({'success': False, 'message': 'Evento no encontrado'}), 404
+
+        # =============================
+        # 4. Validar cada problema
+        # =============================
+        errors = []
+        tipos_validos = ['roto', 'perdido', 'dañado', 'faltante', 'equivocado']
+        responsables_validos = ['cliente', 'empresa', 'proveedor']
+
+        for idx, problema in enumerate(problemas):
+            id_detalle = problema.get('id_detalle')
+            id_articulo = problema.get('id_articulo')
+            tipo_problema = problema.get('tipo_problema')
+            cantidad_afectada = int(problema.get('cantidad_afectada', 0))
+            responsable = problema.get('responsable')
+
+            # Validar existencia del detalle
+            cursor.execute("""
+                SELECT ea.id_detalle, ea.id_evento, ea.cantidad_solicitada, 
+                       a.nombre_articulo, a.codigo
+                FROM evento_articulos ea
+                JOIN articulos a ON ea.id_articulo = a.id_articulo
+                WHERE ea.id_detalle = %s
+            """, (id_detalle,))
+            detalle = cursor.fetchone()
+
+            if not detalle:
+                errors.append({'index': idx, 'mensaje': 'Detalle de artículo no encontrado'})
+                continue
+
+            detalle_id_evento = detalle[1]
+            cantidad_solicitada = detalle[2]
+            nombre_articulo = detalle[3]
+
+            if detalle_id_evento != id_evento:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'mensaje': 'El artículo no pertenece a este evento'
+                })
+                continue
+
+            if cantidad_afectada <= 0:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'campo': 'cantidad_afectada',
+                    'mensaje': 'La cantidad debe ser mayor a 0'
+                })
+
+            if cantidad_afectada > cantidad_solicitada:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'campo': 'cantidad_afectada',
+                    'mensaje': f'La cantidad ({cantidad_afectada}) excede la cantidad del evento ({cantidad_solicitada})'
+                })
+
+            if tipo_problema not in tipos_validos:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'campo': 'tipo_problema',
+                    'mensaje': f"Tipo inválido. Debe ser uno de: {', '.join(tipos_validos)}"
+                })
+
+            if responsable not in responsables_validos:
+                errors.append({
+                    'index': idx,
+                    'articulo': nombre_articulo,
+                    'campo': 'responsable',
+                    'mensaje': f"Responsable inválido. Debe ser uno de: {', '.join(responsables_validos)}"
+                })
+
+        if errors:
+            return jsonify({'success': False, 'message': 'Errores de validación', 'errors': errors}), 400
+
+        # =============================
+        # 5. Procesar y registrar cada problema
+        # =============================
+        reportes_creados = []
+
+        for problema in problemas:
+            id_detalle = problema['id_detalle']
+            id_articulo = problema['id_articulo']
+            tipo_problema = problema['tipo_problema']
+            cantidad_afectada = int(problema['cantidad_afectada'])
+            responsable = problema['responsable']
+            costo_unitario = float(problema['costo_unitario'])
+
+            costo_problema = cantidad_afectada * costo_unitario
+
+            # Obtener datos del artículo
+            cursor.execute("""
+                SELECT codigo, nombre_articulo, cantidad_disponible, cantidad_dañada
+                FROM articulos
+                WHERE id_articulo = %s
+            """, (id_articulo,))
+            articulo = cursor.fetchone()
+            codigo, nombre_articulo, cantidad_disponible, cantidad_dañada = articulo
+
+            # Insertar reporte
+            cursor.execute("""
+                INSERT INTO reportes_problemas (
+                    id_evento, id_articulo, tipo_problema, descripcion_problema,
+                    responsable, costo_problema, estado_reporte, fecha_reporte, reportado_por
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, 'abierto', %s, %s)
+                RETURNING id_reporte
+            """, (
+                id_evento,
+                id_articulo,
+                tipo_problema,
+                f"Reportado en lote: {cantidad_afectada} unidad(es) tipo '{tipo_problema}'",
+                responsable,
+                costo_problema,
+                datetime.now(),
+                user_id
+            ))
+
+            id_reporte = cursor.fetchone()[0]
+
+            # Actualizar estado del artículo
+            cursor.execute("""
+                UPDATE evento_articulos
+                SET estado_articulo = 'con_problemas'
+                WHERE id_detalle = %s
+            """, (id_detalle,))
+
+            # Actualizar inventario
+            if tipo_problema == 'perdido':
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = cantidad_disponible - %s
+                    WHERE id_articulo = %s
+                """, (cantidad_afectada, id_articulo))
+                tipo_mov = 'perdido'
+
+            elif tipo_problema in ['roto', 'dañado']:
+                cursor.execute("""
+                    UPDATE articulos
+                    SET cantidad_disponible = cantidad_disponible - %s,
+                        cantidad_dañada = cantidad_dañada + %s
+                    WHERE id_articulo = %s
+                """, (cantidad_afectada, cantidad_afectada, id_articulo))
+                tipo_mov = 'dañado'
+            else:
+                tipo_mov = tipo_problema
+
+            # Registrar movimiento inventario
+            cursor.execute("""
+                INSERT INTO movimientos_inventario (
+                    id_articulo, id_evento, tipo_movimiento, cantidad,
+                    responsable, observaciones, fecha_movimiento
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                id_articulo,
+                id_evento,
+                tipo_mov,
+                cantidad_afectada,
+                responsable,
+                f"Reporte de problema en lote: {tipo_problema}. Cantidad: {cantidad_afectada}",
+                datetime.now()
+            ))
+
+            reportes_creados.append({
+                'id_reporte': id_reporte,
+                'id_articulo': id_articulo,
+                'codigo': codigo,
+                'nombre_articulo': nombre_articulo,
+                'tipo_problema': tipo_problema,
+                'cantidad': cantidad_afectada,
+                'responsable': responsable,
+                'costo': float(costo_problema)
+            })
+
+        db.session.commit()
+
+        # =============================
+        # 6. Generar PDF
+        # =============================
+        pdf_filename = generar_pdf_reporte_problemas(
+            id_evento=id_evento,
+            numero_evento=evento[1],
+            problemas=reportes_creados,
+            costo_total=costo_total,
+            cursor=cursor
+        )
+
+        pdf_url = f"/downloads/{pdf_filename}"
+
+        return jsonify({
+            'success': True,
+            'reportes_creados': len(reportes_creados),
+            'costo_total': float(costo_total),
+            'pdf_url': pdf_url,
+            'detalles': reportes_creados
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error en reportar_problemas_lote: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+
+# ====================================================================
+# FUNCIÓN AUXILIAR: GENERAR PDF
+# ====================================================================
+
+def generar_pdf_reporte_problemas(id_evento, numero_evento, problemas, costo_total, cursor):
+    """
+    Genera un PDF con el reporte de problemas
+    """
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    
+    # Obtener información del evento
+    cursor.execute("""
+        SELECT e.fecha_evento, e.lugar_evento, c.nombre as cliente_nombre
+        FROM eventos e
+        LEFT JOIN clientes c ON e.id_cliente = c.id_cliente
+        WHERE e.id_evento = %s
+    """, (id_evento,))
+    
+    evento_info = cursor.fetchone()
+    fecha_evento = evento_info[0] if evento_info[0] else 'N/A'
+    lugar_evento = evento_info[1] if evento_info[1] else 'No especificado'
+    cliente_nombre = evento_info[2] if evento_info[2] else 'N/A'
+    
+    # Crear directorio si no existe
+    pdf_dir = os.path.join('static', 'downloads')
+    os.makedirs(pdf_dir, exist_ok=True)
+    
+    # Nombre del archivo
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f"reporte-problemas-{numero_evento}-{timestamp}.pdf"
+    filepath = os.path.join(pdf_dir, filename)
+    
+    # Crear documento PDF
+    doc = SimpleDocTemplate(filepath, pagesize=letter)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # TÍTULO
+    title = Paragraph(
+        f"<b>REPORTE DE PROBLEMAS - {numero_evento}</b>",
+        styles['Title']
+    )
+    elements.append(title)
+    elements.append(Spacer(1, 20))
+    
+    # INFORMACIÓN DEL EVENTO
+    info_evento = f"""
+    <b>Cliente:</b> {cliente_nombre}<br/>
+    <b>Fecha del Evento:</b> {fecha_evento.strftime('%d/%m/%Y') if hasattr(fecha_evento, 'strftime') else fecha_evento}<br/>
+    <b>Lugar:</b> {lugar_evento}<br/>
+    <b>Fecha del Reporte:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}
+    """
+    info_p = Paragraph(info_evento, styles['Normal'])
+    elements.append(info_p)
+    elements.append(Spacer(1, 30))
+    
+    # TÍTULO DE TABLA
+    subtitle = Paragraph("<b>Detalle de Problemas Reportados:</b>", styles['Heading2'])
+    elements.append(subtitle)
+    elements.append(Spacer(1, 10))
+    
+    # CREAR TABLA
+    data = [['Código', 'Artículo', 'Tipo', 'Cant.', 'Responsable', 'Costo']]
+    
+    for problema in problemas:
+        nombre_corto = problema['nombre_articulo'][:30] + '...' if len(problema['nombre_articulo']) > 30 else problema['nombre_articulo']
+        data.append([
+            problema['codigo'],
+            nombre_corto,
+            problema['tipo_problema'].upper(),
+            str(problema['cantidad']),
+            problema['responsable'].capitalize(),
+            f"Q{problema['costo']:.2f}"
+        ])
+    
+    # Fila de total
+    data.append(['', '', '', '', 'TOTAL:', f"Q{costo_total:.2f}"])
+    
+    # Crear tabla
+    table = Table(data, colWidths=[60, 180, 70, 40, 80, 70])
+    table.setStyle(TableStyle([
+        # Encabezado
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EF4444')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        # Filas de datos
+        ('BACKGROUND', (0, 1), (-1, -2), colors.HexColor('#FEE2E2')),
+        ('GRID', (0, 0), (-1, -2), 1, colors.black),
+        # Fila de total
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#FECACA')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, -1), (-1, -1), 11),
+        ('SPAN', (0, -1), (4, -1)),
+        ('GRID', (0, -1), (-1, -1), 2, colors.black)
+    ]))
+    
+    elements.append(table)
+    elements.append(Spacer(1, 40))
+    
+    # NOTA
+    nota = Paragraph(
+        "<i>Nota: Este reporte debe ser firmado por el responsable y archivado "
+        "junto con la documentación del evento.</i>",
+        styles['Normal']
+    )
+    elements.append(nota)
+    elements.append(Spacer(1, 30))
+    
+    # FIRMAS
+    firmas = """
+    <br/><br/><br/>
+    _________________________&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    _________________________<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Firma Responsable&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    Firma Verificador
+    """
+    firmas_p = Paragraph(firmas, styles['Normal'])
+    elements.append(firmas_p)
+    
+    # Construir PDF
+    doc.build(elements)
+    
+    return filename
+
+
+# ====================================================================
+# ENDPOINT: DESCARGAR PDF
+# ====================================================================
+
+@app.route('/downloads/<filename>')
+def download_pdf(filename):
+    """
+    Endpoint para descargar archivos PDF generados
+    """
+    try:
+        pdf_path = os.path.join('static', 'downloads', filename)
+        
+        if not os.path.exists(pdf_path):
+            return jsonify({'error': 'Archivo no encontrado'}), 404
+        
+        return send_file(
+            pdf_path,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        print(f"Error descargando PDF: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/eventos/<int:id_evento>/articulos/<int:id_detalle>/revertir-estado', methods=['POST'])
+def revertir_estado_articulo(id_evento, id_detalle):
+    """Cambiar estado del artículo de 'con_problemas' a 'reservado'"""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        # Actualizar estado
+        cursor.execute("""
+            UPDATE evento_articulos
+            SET estado_articulo = 'reservado'
+            WHERE id_detalle = %s AND id_evento = %s
+        """, (id_detalle, id_evento))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Estado revertido a reservado'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error revirtiendo estado: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error al revertir estado'}), 500
+
+
+# ════════════════════════════════════════════════════════════════
+# ENDPOINTS PARA VER DETALLE Y EDITAR
+# ════════════════════════════════════════════════════════════════
+
+
+
+@app.route('/api/eventos/<int:id_evento>', methods=['PUT'])
+def actualizar_evento_completo(id_evento):
+    """Actualizar un evento existente"""
+    try:
+        data = request.json
+        cursor = db.session.connection().connection.cursor()
+        
+        # Cliente
+        id_cliente = data.get('id_cliente')
+        if not id_cliente and data.get('nuevo_cliente'):
+            cliente_data = data['nuevo_cliente']
+            cursor.execute("""
+                INSERT INTO clientes (nombre, telefono, direccion, notas)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id_cliente
+            """, (
+                cliente_data['nombre'],
+                cliente_data.get('telefono', ''),
+                cliente_data.get('direccion', ''),
+                cliente_data.get('notas', '')
+            ))
+            id_cliente = cursor.fetchone()[0]
+        
+        # Calcular total
+        total = 0
+        for art in data.get('articulos', []):
+            total += float(art['precio_unitario']) * int(art['cantidad'])
+        for serv in data.get('servicios', []):
+            total += float(serv['precio_unitario']) * int(serv['cantidad_horas'])
+        
+        # Actualizar evento
+        cursor.execute("""
+            UPDATE eventos 
+            SET id_cliente = %s, fecha_evento = %s, hora_inicio = %s,
+                hora_fin = %s, lugar_evento = %s, numero_invitados = %s, 
+                notas = %s, total = %s
+            WHERE id_evento = %s
+        """, (
+            id_cliente, data['fecha_evento'], data['hora_inicio'],
+            data['hora_fin'], data['lugar_evento'],
+            data.get('numero_invitados'), data.get('notas', ''), 
+            total, id_evento
+        ))
+        
+        # Eliminar items anteriores
+        cursor.execute("DELETE FROM evento_articulos WHERE id_evento = %s", (id_evento,))
+        cursor.execute("DELETE FROM evento_servicios WHERE id_evento = %s", (id_evento,))
+        
+        # Insertar artículos
+        for articulo in data.get('articulos', []):
+            cursor.execute("""
+                INSERT INTO evento_articulos (id_evento, id_articulo, cantidad, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (id_evento, articulo['id_articulo'], articulo['cantidad'], articulo['precio_unitario']))
+        
+        # Insertar servicios
+        for servicio in data.get('servicios', []):
+            cursor.execute("""
+                INSERT INTO evento_servicios (id_evento, id_servicio, cantidad_horas, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (id_evento, servicio['id_servicio'], servicio['cantidad_horas'], servicio['precio_unitario']))
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Evento actualizado'})
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/eventos/<int:id_evento>/estado', methods=['PATCH'])
+def cambiar_estado_evento(id_evento):
+    """Cambiar solo el estado de un evento"""
+    auth_check = require_login()
+    if auth_check:
+        return auth_check
+    
+    try:
+        data = request.json
+        nuevo_estado = data.get('estado')
+        
+        if not nuevo_estado:
+            return jsonify({
+                'success': False,
+                'message': 'El campo estado es requerido'
+            }), 400
+        
+        # Validar que el estado sea válido
+        estados_validos = ['reservado', 'confirmado', 'en_proceso', 'completado', 'cancelado', 'pendiente_pago']
+        if nuevo_estado not in estados_validos:
+            return jsonify({
+                'success': False,
+                'message': f'Estado inválido. Estados válidos: {", ".join(estados_validos)}'
+            }), 400
+        
+        cursor = db.session.connection().connection.cursor()
+        
+        # Verificar que el evento existe
+        cursor.execute(
+            "SELECT id_evento FROM eventos WHERE id_evento = %s",
+            (id_evento,)
+        )
+        
+        if not cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': 'Evento no encontrado'
+            }), 404
+        
+        # Actualizar solo el estado
+        cursor.execute("""
+            UPDATE eventos 
+            SET estado = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id_evento = %s
+        """, (nuevo_estado, id_evento))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Estado del evento cambiado a {nuevo_estado}'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en cambiar_estado_evento: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error al cambiar estado: {str(e)}'
+        }), 500
+
+@app.route('/api/cotizaciones/<int:id_cotizacion>', methods=['GET'])
+def obtener_detalle_cotizacion(id_cotizacion):
+    """Obtener detalles de una cotización"""
+    try:
+        cursor = db.session.connection().connection.cursor()
+        
+        cursor.execute("""
+            SELECT c.*, 
+                   cl.nombre as nombre_cliente, 
+                   cl.telefono as telefono_cliente,
+                   cl.direccion as direccion_cliente
+            FROM cotizaciones c
+            LEFT JOIN clientes cl ON c.id_cliente = cl.id_cliente
+            WHERE c.id_cotizacion = %s
+        """, (id_cotizacion,))
+        
+        cotizacion_row = cursor.fetchone()
+        if not cotizacion_row:
+            return jsonify({'success': False, 'message': 'Cotización no encontrada'})
+        
+        columns = [desc[0] for desc in cursor.description]
+        cotizacion = dict(zip(columns, cotizacion_row))
+        
+        # Convertir tipos
+        if cotizacion.get('fecha_evento'):
+            cotizacion['fecha_evento'] = cotizacion['fecha_evento'].isoformat()
+        if cotizacion.get('hora_inicio'):
+            cotizacion['hora_inicio'] = str(cotizacion['hora_inicio'])[:5]
+        if cotizacion.get('hora_fin'):
+            cotizacion['hora_fin'] = str(cotizacion['hora_fin'])[:5]
+        if cotizacion.get('total'):
+            cotizacion['total'] = float(cotizacion['total'])
+        
+        # Artículos
+        cursor.execute("""
+            SELECT ca.*, a.nombre_articulo
+            FROM cotizacion_articulos ca
+            JOIN articulos a ON ca.id_articulo = a.id_articulo
+            WHERE ca.id_cotizacion = %s
+        """, (id_cotizacion,))
+        
+        articulos = []
+        for row in cursor.fetchall():
+            art_columns = [desc[0] for desc in cursor.description]
+            articulo = dict(zip(art_columns, row))
+            articulo['precio_unitario'] = float(articulo['precio_unitario'])
+            articulos.append(articulo)
+        
+        # Servicios
+        cursor.execute("""
+            SELECT cs.*, s.nombre_servicio
+            FROM cotizacion_servicios cs
+            JOIN servicios s ON cs.id_servicio = s.id_servicio
+            WHERE cs.id_cotizacion = %s
+        """, (id_cotizacion,))
+        
+        servicios = []
+        for row in cursor.fetchall():
+            serv_columns = [desc[0] for desc in cursor.description]
+            servicio = dict(zip(serv_columns, row))
+            servicio['precio_unitario'] = float(servicio['precio_unitario'])
+            servicios.append(servicio)
+        
+        cotizacion['articulos'] = articulos
+        cotizacion['servicios'] = servicios
+        
+        return jsonify({'success': True, 'cotizacion': cotizacion})
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/cotizaciones/<int:id_cotizacion>', methods=['PUT'])
+def actualizar_cotizacion_completa(id_cotizacion):
+    """Actualizar una cotización existente"""
+    try:
+        data = request.json
+        cursor = db.session.connection().connection.cursor()
+        
+        # Cliente
+        id_cliente = data.get('id_cliente')
+        if not id_cliente and data.get('nuevo_cliente'):
+            cliente_data = data['nuevo_cliente']
+            cursor.execute("""
+                INSERT INTO clientes (nombre, telefono, direccion, notas)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id_cliente
+            """, (
+                cliente_data['nombre'],
+                cliente_data.get('telefono', ''),
+                cliente_data.get('direccion', ''),
+                cliente_data.get('notas', '')
+            ))
+            id_cliente = cursor.fetchone()[0]
+        
+        # Calcular total
+        total = 0
+        for art in data.get('articulos', []):
+            total += float(art['precio_unitario']) * int(art['cantidad'])
+        for serv in data.get('servicios', []):
+            total += float(serv['precio_unitario']) * int(serv['cantidad_horas'])
+        
+        # Actualizar cotización
+        cursor.execute("""
+            UPDATE cotizaciones 
+            SET id_cliente = %s, fecha_evento = %s, hora_inicio = %s,
+                hora_fin = %s, lugar_evento = %s, numero_invitados = %s, 
+                notas = %s, total = %s
+            WHERE id_cotizacion = %s
+        """, (
+            id_cliente, data['fecha_evento'], data['hora_inicio'],
+            data['hora_fin'], data['lugar_evento'],
+            data.get('numero_invitados'), data.get('notas', ''), 
+            total, id_cotizacion
+        ))
+        
+        # Eliminar items anteriores
+        cursor.execute("DELETE FROM cotizacion_articulos WHERE id_cotizacion = %s", (id_cotizacion,))
+        cursor.execute("DELETE FROM cotizacion_servicios WHERE id_cotizacion = %s", (id_cotizacion,))
+        
+        # Insertar artículos
+        for articulo in data.get('articulos', []):
+            cursor.execute("""
+                INSERT INTO cotizacion_articulos (id_cotizacion, id_articulo, cantidad, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (id_cotizacion, articulo['id_articulo'], articulo['cantidad'], articulo['precio_unitario']))
+        
+        # Insertar servicios
+        for servicio in data.get('servicios', []):
+            cursor.execute("""
+                INSERT INTO cotizacion_servicios (id_cotizacion, id_servicio, cantidad_horas, precio_unitario)
+                VALUES (%s, %s, %s, %s)
+            """, (id_cotizacion, servicio['id_servicio'], servicio['cantidad_horas'], servicio['precio_unitario']))
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Cotización actualizada'})
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5050))
+    print("Iniciando aplicación Flask...")
+    app.run(host='0.0.0.0', port=port, debug=False)
